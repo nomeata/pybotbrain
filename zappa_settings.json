@@ -1,0 +1,14 @@
+{
+    "dev": {
+        "app_function": "app.app",
+        "aws_region": "eu-central-1",
+        "profile_name": "python-bot",
+        "project_name": "python-bot",
+        "runtime": "python3.7",
+        "s3_bucket": "python-bot-zappa",
+	"domain": "bot.nomeata.de",
+	"certificate_arn": "arn:aws:acm:us-east-1:569211034371:certificate/d9ce2f13-18b5-4521-80ff-0ecf2e883a89",
+	"route53_enabled": false,
+	"keep_warm": "false"
+    }
+}
