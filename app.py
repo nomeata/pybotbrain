@@ -1,4 +1,6 @@
 from functools import partial
+import string
+import random
 import sys
 import uuid
 import time
@@ -51,11 +53,12 @@ def create_table():
         }
     )
 
-def define_bot(botname, token):
+def define_bot(botname, token, admins):
     table.put_item( Item={
         'bot':botname,
         'id': 'settings',
-        'token': token
+        'token': token,
+        'admins': admins
     })
 
 def get_bot_settings(botname):
@@ -92,12 +95,28 @@ def set_state(botname, new_state):
         Item={'bot':botname, 'id': 'state', 'state': json.dumps(new_state) }
     )
 
+def get_pws(botname):
+    result = table.get_item(Key={'bot': botname, 'id': 'pw'})
+    if 'Item' in result:
+        return result['Item']['pws']
+    else:
+        abort(403, "No password set, please /login first")
+
+def add_pw(botname, pw):
+    table.update_item(
+        Key = { 'bot':botname,  'id': 'pw' },
+        UpdateExpression = "SET pws = list_append(:vals, if_not_exists(pws, :empty))",
+        ExpressionAttributeValues = {
+            ":vals" : [ pw ],
+            ":empty": []
+        }
+    )
+
 def note_error(botname, e):
     logger.warn("Exception encountered: %s", e)
     table.update_item(
         Key = { 'bot':botname,  'id': 'errors' },
         UpdateExpression = "SET errors = list_append(:vals, if_not_exists(errors, :empty))",
-        # ExpressionAttributeNames = { "#exc" : "exceptions", "#date": "date"},
         ExpressionAttributeValues = {
             ":vals" : [ { "when": int(time.time()), "msg": str(e) } ],
             ":empty": []
@@ -118,6 +137,20 @@ def last_errors(botname):
 @app.route('/edit_code/<botname>', methods=('GET', 'POST'))
 def edit_code(botname):
     settings = get_bot_settings(botname)
+    pw = request.cookies.get(f"bot-{botname}-pw")
+    print("cookie:", pw)
+    pws = get_pws(botname)
+    if not pw or pw not in pws:
+        err = ""
+        if request.method == 'POST' and 'pw' in request.form:
+            pw = request.form['pw']
+            if pw in pws:
+                resp = redirect(url_for('edit_code', botname = botname))
+                resp.set_cookie(f"bot-{botname}-pw", pw)
+                return resp
+            err = "Sorry, wrong code"
+        return render_template('login.html', err = err)
+
     if request.method == 'POST':
         if 'code' in request.form:
             set_user_code(botname, request.form['code'])
@@ -125,6 +158,10 @@ def edit_code(botname):
         if 'eval' in request.form:
             eval_user_code(botname, request.form['eval'])
             return redirect(url_for('edit_code', botname = botname))
+        if 'logout' in request.form:
+            resp = redirect(url_for('edit_code', botname = botname))
+            resp.delete_cookie(f"bot-{botname}-pw")
+            return resp
 
     return render_template('edit_code.html',
         code = get_user_code(botname),
@@ -162,7 +199,18 @@ def echo(botname, update, context):
             update.message.reply_text(response)
         set_state(botname, state)
 
+def login(botname, update, context):
+    id = update.message.from_user.id
+    settings = get_bot_settings(botname)
+    if id in settings['admins']:
+        pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
+        add_pw(botname, pw)
+        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/edit_code/{botname}")
+    else:
+        update.message.reply_text(f"Sorry, but you are not my owner!\n(Your id is {update.message.from_user.id})")
+
 def add_handlers(botname, dp):
+    dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.channel))
     dp.add_handler(MessageHandler(Filters.text, partial(echo, botname)))
 
 
