@@ -76,7 +76,7 @@ def get_user_code(botname):
     if 'Item' in result:
         return result['Item']['code']
     else:
-        return "def direct_message(sender, text):\n    return f\"Hello {sender}!\"\n"
+        return "def private_message(sender, text):\n    return f\"Hello {sender}!\"\n"
 
 def set_user_code(botname, new_code):
     table.put_item(
@@ -186,17 +186,24 @@ def eval_user_code(botname, code):
 def echo(botname, update, context):
     state = get_state(botname)
     mod_code = get_user_code(botname)
+    response = None
     try:
         from types import ModuleType
         mod = ModuleType('botcode')
         mod.memory = state
         exec(mod_code, mod.__dict__)
-        response = mod.direct_message(update.message.from_user.first_name, update.message.text)
+        if update.message.chat.type == 'private':
+            if 'private_message' in mod.__dict__:
+                response = mod.private_message(update.message.from_user.first_name, update.message.text)
+
+        elif update.message.chat.type == 'group':
+            if 'group_message' in mod.__dict__:
+                response = mod.group_message(update.message.from_user.first_name, update.message.text)
     except:
         note_error(botname, sys.exc_info()[1])
     else:
         if response is not None:
-            update.message.reply_text(response)
+            context.bot.send_message(chat_id = update.message.chat.id, text = response)
         set_state(botname, state)
 
 def login(botname, update, context):
@@ -210,7 +217,7 @@ def login(botname, update, context):
         update.message.reply_text(f"Sorry, but you are not my owner!\n(Your id is {update.message.from_user.id})")
 
 def add_handlers(botname, dp):
-    dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.channel))
+    dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.private))
     dp.add_handler(MessageHandler(Filters.text, partial(echo, botname)))
 
 
