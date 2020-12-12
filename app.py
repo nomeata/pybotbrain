@@ -100,7 +100,7 @@ def get_pws(botname):
     if 'Item' in result:
         return result['Item']['pws']
     else:
-        abort(403, "No password set, please /login first")
+        return None
 
 def add_pw(botname, pw):
     table.update_item(
@@ -133,6 +133,41 @@ def last_errors(botname):
     else:
         return []
 
+def api_authenticate():
+    if not request.json or not 'botname' in request.json and not 'password' in request.json:
+        abort(make_response(json.dumps({'error': "Missing login data"}), 400))
+
+    botname = request.json['botname']
+    pws = get_pws(botname)
+    if pws is None:
+        abort(make_response(json.dumps({'error': f'I do not know any bot called {botname}'}), 403))
+    elif pws == []:
+        abort(make_response(json.dumps({'error': 'No passwords set. Ask the bot with /login!'}), 403))
+    else:
+        if request.json['password'] in pws:
+            return botname
+        else:
+            abort(make_response(json.dumps({'error': 'Password not correct. Ask the bot with /login to get a password!'}), 403))
+
+@app.route('/api/login', methods=('POST',))
+def login_test():
+    botname = api_authenticate()
+    return json.dumps({})
+
+@app.route('/api/get_code', methods=('POST',))
+def get_code():
+    botname = api_authenticate()
+    return json.dumps({
+        'code': get_user_code(botname)
+    })
+
+@app.route('/api/set_code', methods=('POST',))
+def set_code():
+    botname = api_authenticate()
+    if not 'new_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
+    set_user_code(botname, request.json['new_code'])
+    return json.dumps({})
 
 @app.route('/edit_code/<botname>', methods=('GET', 'POST'))
 def edit_code(botname):
