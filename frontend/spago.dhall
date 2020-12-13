@@ -8,6 +8,7 @@
   , "debug"
   , "effect"
   , "halogen"
+  , "monad-loops"
   , "psci-support"
   , "record"
   ]

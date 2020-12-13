@@ -11,7 +11,7 @@ import boto3
 from boto3.dynamodb.conditions import *
 
 from flask import Flask
-from flask import request, abort, render_template, redirect, url_for
+from flask import request, abort, render_template, redirect, url_for, make_response
 
 from telegram import Update, Bot
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
@@ -138,6 +138,9 @@ def api_authenticate():
         abort(make_response(json.dumps({'error': "Missing login data"}), 400))
 
     botname = request.json['botname']
+    if not botname:
+        abort(make_response(json.dumps({'error': f'Botname cannot be empty'}), 403))
+
     pws = get_pws(botname)
     if pws is None:
         abort(make_response(json.dumps({'error': f'I do not know any bot called {botname}'}), 403))
@@ -160,6 +163,31 @@ def get_code():
     return json.dumps({
         'code': get_user_code(botname)
     })
+
+@app.route('/api/get_state', methods=('POST',))
+def api_get_statue():
+    botname = api_authenticate()
+    return json.dumps({
+        'state': json.dumps(get_state(botname),indent=2, sort_keys=True)
+    })
+
+@app.route('/api/test_code', methods=('POST',))
+def test_code():
+    botname = api_authenticate()
+    if not 'new_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
+    new_code = request.json['new_code']
+    state = get_state(botname),
+
+    try:
+        from types import ModuleType
+        mod = ModuleType('botcode')
+        mod.memory = state
+        exec(compile(new_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
+    except:
+        return json.dumps({'error': str(sys.exc_info()[1])})
+    else:
+        return json.dumps({'error': None})
 
 @app.route('/api/set_code', methods=('POST',))
 def set_code():

@@ -5,6 +5,7 @@ import Prelude
 import Ace as Ace
 import Ace.EditSession as Session
 import Ace.Editor as Editor
+import Ace.UndoManager as UndoManager
 import Ace.Types (Editor)
 import Data.Foldable (traverse_)
 import Data.Maybe (Maybe(..))
@@ -16,7 +17,7 @@ import Halogen.Query.EventSource as ES
 
 type Slot = H.Slot Query Output
 
-data Query a = ChangeText String a
+data Query a = InitText String a
 
 data Output = TextChanged String
 
@@ -58,7 +59,13 @@ handleAction = case _ of
   Initialize -> do
     H.getHTMLElementRef (H.RefLabel "ace") >>= traverse_ \element -> do
       editor <- H.liftEffect $ Ace.editNode element Ace.ace
+      H.liftEffect $ Editor.setMinLines 25 editor
+      H.liftEffect $ Editor.setMaxLines 1000 editor
+      H.liftEffect $ Editor.setAutoScrollEditorIntoView true editor
+      H.liftEffect $ Editor.setTheme "ace/theme/terminal" editor
+      H.liftEffect $ Editor.setFontSize "120%" editor
       session <- H.liftEffect $ Editor.getSession editor
+      H.liftEffect $ Session.setMode "ace/mode/python" session
       H.modify_ (_ { editor = Just editor })
       void $ H.subscribe $ ES.effectEventSource \emitter -> do
         Session.onChange session (\_ -> ES.emit emitter HandleChange)
@@ -74,13 +81,14 @@ handleAction = case _ of
 
 handleQuery :: forall m a. MonadAff m => Query a -> H.HalogenM State Action () Output m (Maybe a)
 handleQuery = case _ of
-  ChangeText text next -> do
+  InitText text next -> do
     maybeEditor <- H.gets _.editor
     case maybeEditor of
       Nothing -> pure unit
       Just editor -> do
-        current <- H.liftEffect $ Editor.getValue editor
-        when (text /= current) do
-          void $ H.liftEffect $ Editor.setValue text Nothing editor
+        H.liftEffect $ do
+          void $ Editor.setValue text (Just 1) editor
+          Editor.getSession editor >>= Session.getUndoManager >>= UndoManager.reset
+
     H.raise $ TextChanged text
     pure (Just next)

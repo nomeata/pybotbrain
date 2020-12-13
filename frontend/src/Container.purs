@@ -28,7 +28,9 @@ _ide = SProxy :: SProxy "ide"
 component :: forall f i o m. MonadAff m => H.Component HH.HTML f i o m
 component =
   H.mkComponent
-    { initialState: \_ -> Login
+    { initialState:
+      -- \_ -> Login
+      \_ -> IDE {botname: "EllasTestBot", password: "XMWBTB"}
     , render: render
     , eval: H.mkEval $ H.defaultEval { handleAction = handleAction }
     }

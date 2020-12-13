@@ -2,6 +2,7 @@ module Login where
 
 import Prelude
 
+import Data.String as String
 import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
@@ -15,6 +16,9 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
 import Halogen.HTML.Events as HE
+import Web.Event.Event (Event)
+import Web.Event.Event as Event
+import HTMLUtils as HU
 -- import Debug.Trace as Debug
 import Data.Argonaut (encodeJson, decodeJson, printJsonDecodeError)
 
@@ -35,14 +39,14 @@ type State =
 data LoginAction
   = ChangeBotname String
   | ChangePassword String
-  | DoLogin
+  | DoLogin Event
 
 component :: forall f i m. MonadAff m => H.Component HH.HTML f i LoginData m
 component =
   H.mkComponent
     { initialState: \_ -> {
-        botname : "EllasTestBot",
-        password: "XMWBTB",
+        botname : "", -- "EllasTestBot",
+        password: "", -- "XMWBTB",
         lastError: Nothing,
         loading: false
       }
@@ -51,30 +55,62 @@ component =
     }
 
 renderLogin :: forall m. MonadAff m => State -> H.ComponentHTML LoginAction () m
-renderLogin st =
-  HH.div_
-    [ HH.h1_
-        [ HH.text "Login" ]
-    , HH.div_
-        [ HH.p_ $
-          [ HH.input [ HP.name "botname", HP.value st.botname, HE.onValueInput (Just <<< ChangeBotname) ]
-          , HH.input [ HP.name "pw", HP.type_ HP.InputPassword, HP.value st.password, HE.onValueInput (Just <<< ChangePassword)  ]
-          , HH.button
-            [ HP.disabled st.loading
-            , HE.onClick \_ -> Just DoLogin ]
-            [ HH.text "Login" ]
-          ] <> (foldMap (\err -> [ HH.p_ [ HH.text err] ]) st.lastError )
-        ]
+renderLogin st = HU.fullHeight $
+  HU.divClass ["container", "has-text-centered"]
+    [ HU.divClass ["column","is-4","is-offset-4"]
+      [ HH.h1  [ HU.classes ["title"] ] [ HH.text "Bot Control Center" ]
+      , HH.hr_
+      , HH.p  [ HU.classes ["subtitle"] ]
+        [ HH.text "Send /login to your bot to get a password!" ]
+      , HH.form
+        [ HE.onSubmit \e -> Just (DoLogin e)
+        ] $
+        [ HU.divClass ["field"]
+          [ HU.divClass ["control"]
+            [ HH.input
+              [ HU.classes ["input", "is-large", "has-text-centered"]
+              , HP.name "botname"
+              , HP.value st.botname
+              , HE.onValueInput (Just <<< ChangeBotname)
+              , HP.placeholder "NameOfYourBot"
+              ]
+            ]
+          ]
+        , HU.divClass ["field"]
+          [ HU.divClass ["control"]
+            [ HH.input
+              [ HU.classes ["input", "is-large", "has-text-centered"]
+              , HP.type_ HP.InputPassword
+              , HP.name "password"
+              , HP.value st.password
+              , HE.onValueInput (Just <<< ChangePassword)
+              , HP.placeholder "ABCDEF"
+              ]
+            ]
+          ]
+        , HU.divClass ["field"]
+          [ HU.divClass (["control"] <> (if st.loading then ["is-loading"] else []))
+            [ HH.button
+              [ HP.disabled (not can_login)
+              , HU.classes ["button", "is-link", "is-large", "is-fullwidth"]
+              ]
+              [ HH.text "Login" ]
+            ]
+          ]
+        ] <> (foldMap (\err -> [ HH.p_ [ HH.text err] ]) st.lastError )
+      ]
     ]
+  where
+    can_login = not st.loading && st.botname /= "" && String.length st.password == 6
 
 handleLoginAction :: forall m.  MonadAff m => LoginAction -> H.HalogenM State LoginAction () LoginData m Unit
 handleLoginAction = case _ of
   ChangeBotname s -> H.modify_ (_ { botname = s})
   ChangePassword s -> H.modify_ (_ { password = s})
-  DoLogin -> do
+  DoLogin event -> do
+    H.liftEffect $ Event.preventDefault event
     {botname, password} <- H.get
 
-    -- H.liftEffect $ Event.preventDefault event
     H.modify_ (_ { loading = true })
     response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/login" (Just (AXRB.Json (encodeJson {botname, password})))
     H.modify_ (_ { loading = false} )
