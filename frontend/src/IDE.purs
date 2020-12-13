@@ -146,7 +146,7 @@ reallyUpdateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action Chil
 reallyUpdateTestStatus = do
   st <- H.get
   let req = Record.union st.loginData { new_code: st.editorCode }
-  response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/test_code" (Just (AXRB.Json (encodeJson req)))
+  response_or_error <- H.liftAff $ AX.post AXRF.json "/api/test_code" (Just (AXRB.Json (encodeJson req)))
   case response_or_error of
     Left err -> Console.log (AX.printError err)
     Right response -> do
@@ -172,7 +172,7 @@ updateTestStatus = do
 watchMemory :: forall o m. MonadAff m => H.HalogenM State Action ChildSlots o m Unit
 watchMemory = do --forever do
     st <- H.get
-    response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
+    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
     case response_or_error of
       Left err -> Console.log (AX.printError err)
       Right response -> do
@@ -188,7 +188,7 @@ handleAction :: forall o m. MonadAff m => Action -> H.HalogenM State Action Chil
 handleAction = case _ of
   Initialize -> do
     st <- H.get
-    response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/get_code" (Just (AXRB.Json (encodeJson st.loginData)))
+    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_code" (Just (AXRB.Json (encodeJson st.loginData)))
     case response_or_error of
       Left err -> Console.log (AX.printError err)
       Right response -> do
@@ -210,7 +210,7 @@ handleAction = case _ of
     unless (st.loadingTest) $ do
       H.modify_ (_{ deployedCode = st.editorCode })
       let req = Record.union st.loginData { new_code: st.editorCode }
-      response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/set_code" (Just (AXRB.Json (encodeJson req)))
+      response_or_error <- H.liftAff $ AX.post AXRF.json "/api/set_code" (Just (AXRB.Json (encodeJson req)))
       case response_or_error of
         Left err -> Console.log (AX.printError err)
         Right response -> do

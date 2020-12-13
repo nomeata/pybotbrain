@@ -10,4 +10,5 @@
 /.spago
 /.cache/
 /dist/
+/dist-prod/
 /prod/*

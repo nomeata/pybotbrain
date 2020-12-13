@@ -11,7 +11,7 @@ import boto3
 from boto3.dynamodb.conditions import *
 
 from flask import Flask
-from flask import request, abort, render_template, redirect, url_for, make_response
+from flask import request, abort, render_template, redirect, url_for, make_response, send_from_directory
 
 from telegram import Update, Bot
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
@@ -188,6 +188,19 @@ def test_code():
         return json.dumps({'error': str(sys.exc_info()[1])})
     else:
         return json.dumps({'error': None})
+
+
+@app.route('/admin')
+def send_frontend_index_redir():
+    return redirect("/admin/")
+
+@app.route('/admin/')
+def send_frontend_index():
+    return send_from_directory('frontend', 'index.html')
+
+@app.route('/admin/<path:path>')
+def send_frontend_file(path):
+    return send_from_directory('frontend', path)
 
 @app.route('/api/set_code', methods=('POST',))
 def set_code():

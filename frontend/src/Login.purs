@@ -80,7 +80,7 @@ renderLogin st = HU.fullHeight $
           [ HU.divClass ["control"]
             [ HH.input
               [ HU.classes ["input", "is-large", "has-text-centered"]
-              , HP.type_ HP.InputPassword
+              -- , HP.type_ HP.InputPassword
               , HP.name "password"
               , HP.value st.password
               , HE.onValueInput (Just <<< ChangePassword)
@@ -112,7 +112,7 @@ handleLoginAction = case _ of
     {botname, password} <- H.get
 
     H.modify_ (_ { loading = true })
-    response_or_error <- H.liftAff $ AX.post AXRF.json "http://localhost:5000/api/login" (Just (AXRB.Json (encodeJson {botname, password})))
+    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/login" (Just (AXRB.Json (encodeJson {botname, password})))
     H.modify_ (_ { loading = false} )
     case response_or_error of
       Left err -> H.modify_ (_ {lastError = Just (AX.printError err) })
