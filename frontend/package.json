@@ -8,7 +8,8 @@
   "scripts": {
     "build": "spago build",
     "serve": "parcel dev/index.html --open",
-    "build-prod": "mkdir -p prod && cp dev/index.html prod/ && rm -rf dist-prod && spago bundle-app --to prod/index.js && parcel build -d dist-prod --public-url ./ --no-source-maps prod/index.html"
+    "watch": "parcel watch --public-url ./ dev/index.html --no-hmr",
+    "build-prod": "mkdir -p prod && cp dev/index.html prod/ && rm -rf dist && spago bundle-app --to prod/index.js && parcel build --public-url ./ --no-source-maps prod/index.html"
   },
   "dependencies": {
     "ace-builds": "^1.4.12",

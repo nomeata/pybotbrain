@@ -7,10 +7,12 @@ import Data.Maybe (Maybe(..), isJust)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
 import Control.Monad.Loops (whileM_)
--- import Control.Monad.Rec.Class (forever)
+import Control.Monad.Rec.Class (forever)
 import Effect.Class.Console as Console
--- import Effect.Aff as Aff
+import Effect.Aff as Aff
+import Effect.Aff (Milliseconds(..))
 import Effect.Aff.Class (class MonadAff)
+import Effect.Exception (error)
 import AceComponent as AceComponent
 import Affjax as AX
 import Affjax.StatusCode (StatusCode(..))
@@ -21,6 +23,8 @@ import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
+import Halogen.Query.EventSource (EventSource)
+import Halogen.Query.EventSource as EventSource
 import Record as Record
 import HTMLUtils as HU
 
@@ -44,6 +48,7 @@ type State
 
 data Action
   = Initialize
+  | Tick
   | Deploy
   | HandleAceUpdate AceComponent.Output
 
@@ -168,22 +173,6 @@ updateTestStatus = do
       reallyUpdateTestStatus
     H.modify_ (_{loadingTest = false})
 
-
-watchMemory :: forall o m. MonadAff m => H.HalogenM State Action ChildSlots o m Unit
-watchMemory = do --forever do
-    st <- H.get
-    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
-    case response_or_error of
-      Left err -> Console.log (AX.printError err)
-      Right response -> do
-        if response.status == StatusCode 200
-        then case decodeJson response.body of
-          Left err -> Console.log (printJsonDecodeError err)
-          Right ({state}::{state :: String}) -> do
-            H.modify_ (_ { memory = state })
-        else Console.log "status code not 200" -- (show response)
-    -- Aff.delay (Aff.Milliseconds 1000.0)
-
 handleAction :: forall o m. MonadAff m => Action -> H.HalogenM State Action ChildSlots o m Unit
 handleAction = case _ of
   Initialize -> do
@@ -203,7 +192,21 @@ handleAction = case _ of
               , deployedCode = code
               })
         else Console.log "status code not 200" -- (show response)
-    watchMemory
+    _ <- H.subscribe timer
+    pure unit
+
+  Tick -> do
+    st <- H.get
+    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
+    case response_or_error of
+      Left err -> Console.log (AX.printError err)
+      Right response -> do
+        if response.status == StatusCode 200
+        then case decodeJson response.body of
+          Left err -> Console.log (printJsonDecodeError err)
+          Right ({state}::{state :: String}) -> do
+            H.modify_ (_ { memory = state })
+        else Console.log "status code not 200" -- (show response)
 
   Deploy -> do
     st <- H.get
@@ -224,3 +227,12 @@ handleAction = case _ of
   HandleAceUpdate (AceComponent.TextChanged code) -> do
     H.modify_ (_{ editorCode = code })
     updateTestStatus
+
+timer :: forall m. MonadAff m => EventSource m Action
+timer = EventSource.affEventSource \emitter -> do
+  fiber <- Aff.forkAff $ forever do
+    Aff.delay $ Milliseconds 1000.0
+    EventSource.emit emitter Tick
+
+  pure $ EventSource.Finalizer do
+    Aff.killFiber (error "Event source finalized") fiber
