@@ -6,6 +6,9 @@ import uuid
 import time
 import json
 import datetime
+import pprint
+import io
+from contextlib import redirect_stdout, redirect_stderr
 
 import boto3
 from boto3.dynamodb.conditions import *
@@ -168,7 +171,7 @@ def get_code():
 def api_get_statue():
     botname = api_authenticate()
     return json.dumps({
-        'state': json.dumps(get_state(botname),indent=2, sort_keys=True)
+        'state': pprint.pformat(get_state(botname), indent=2,width=50)
     })
 
 @app.route('/api/test_code', methods=('POST',))
@@ -177,18 +180,45 @@ def test_code():
     if not 'new_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
     new_code = request.json['new_code']
-    state = get_state(botname),
+    state = get_state(botname)
 
     try:
         from types import ModuleType
         mod = ModuleType('botcode')
         mod.memory = state
         exec(compile(new_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
+        if 'test' in mod.__dict__:
+            mod.test()
     except:
         return json.dumps({'error': str(sys.exc_info()[1])})
     else:
         return json.dumps({'error': None})
 
+@app.route('/api/eval_code', methods=('POST',))
+def eval_code():
+    botname = api_authenticate()
+    if not 'mod_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing module code"}), 400))
+    if not 'eval_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing eval code"}), 400))
+    mod_code = request.json['mod_code']
+    eval_code = request.json['eval_code']
+    state = get_state(botname)
+
+    f = io.StringIO()
+    try:
+        with redirect_stdout(f):
+            with redirect_stderr(f):
+                from types import ModuleType
+                mod = ModuleType('botcode')
+                mod.memory = state
+                exec(compile(mod_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
+                ret = exec(compile(eval_code,filename = "eval-code.py", mode = 'single'), mod.__dict__)
+    except:
+        return json.dumps({'output': str(sys.exc_info()[1])})
+    else:
+        set_state(botname, state)
+        return json.dumps({'output':f.getvalue() })
 
 @app.route('/admin')
 def send_frontend_index_redir():

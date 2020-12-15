@@ -3,7 +3,7 @@ module IDE where
 import Prelude
 
 import Data.Const (Const)
-import Data.Maybe (Maybe(..), isJust)
+import Data.Maybe (Maybe(..), isNothing)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
 import Control.Monad.Loops (whileM_)
@@ -25,6 +25,8 @@ import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
 import Halogen.Query.EventSource (EventSource)
 import Halogen.Query.EventSource as EventSource
+import Web.Event.Event as Event
+import Web.Event.Event (Event)
 import Record as Record
 import HTMLUtils as HU
 
@@ -44,12 +46,17 @@ type State
    , testAgain :: Boolean
    , errorMessage :: Maybe String
    , memory :: String
+   , evaling :: Boolean
+   , eval_code :: String
+   , eval_message :: Maybe String
    }
 
 data Action
   = Initialize
-  | Tick
+  | ReloadMemory
   | Deploy
+  | DoEval Event
+  | ChangeEvalCode String
   | HandleAceUpdate AceComponent.Output
 
 type ChildSlots =
@@ -71,7 +78,10 @@ component =
       , testAgain: false
       , errorMessage: Nothing
       , memory: ""
-      }
+      , evaling: false
+      , eval_code: ""
+      , eval_message: Nothing
+      } :: State
     , render: render
     , eval: H.mkEval $ H.defaultEval {
         initialize = Just Initialize,
@@ -82,23 +92,21 @@ component =
 render :: forall m. MonadAff m => State -> H.ComponentHTML Action ChildSlots m
 render st =
   HH.section [HU.classes ["section"]]
-  [ HU.divClass ["container"]
+  [ HU.divClass []
     [ HH.h1 [ HU.classes ["title"] ]
       [ HH.text ("This is the brain of " <> st.loginData.botname)
       ]
     , HU.divClass ["columns"]
-      [ HU.divClass ["column","is-8"]
+      [ HU.divClass ["column","is-7"]
         [ HU.divClass ["card"]
           [ HU.divClass ["card-header"]
             [ HH.p [HU.classes ["card-header-title"]]
               [ HH.text "Code" ]
             ]
-          , HU.divClass ["card-content"]
-            [ HH.slot _ace unit AceComponent.component unit (Just <<< HandleAceUpdate)
-            ]
+          , HH.slot _ace unit AceComponent.component unit (Just <<< HandleAceUpdate)
           ]
         ]
-      , HU.divClass ["column","is-4"]
+      , HU.divClass ["column","is-5"]
         [ HU.divClass ["block"]
           [ HU.divClass ["card"]
             [ HU.divClass ["card-header"]
@@ -112,9 +120,10 @@ render st =
                   Just err -> [ HH.text err ]
               ]
             , HU.divClass ["card-footer"]
-              [ HH.button
-                [ HU.classes ["card-footer-item button is-primary"]
-                , HP.disabled (isJust st.errorMessage || st.deployedCode == st.editorCode)
+              [ let enabled = isNothing st.errorMessage && st.deployedCode /= st.editorCode in
+                HH.button
+                [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-primary"] else []))
+                , HP.disabled (not enabled)
                 , HE.onClick \_ -> Just Deploy
                 ]
                 [ HH.text "Deploy" ]
@@ -127,8 +136,7 @@ render st =
               [ HH.p [HU.classes ["card-header-title"]]
                 [ HH.text "Memory" ]
               ]
-            , HU.divClass ["card-content"]
-              [ HH.pre_ [ HH.text st.memory ]]
+            ,  HH.pre_ [ HH.text st.memory ]
             ]
           ]
         , HU.divClass ["block"]
@@ -139,6 +147,43 @@ render st =
               ]
             , HU.divClass ["card-content"]
               [ HH.text "None yet!" ]
+            ]
+          ]
+        , HU.divClass ["block"]
+          [ HU.divClass ["card"]
+            [ HU.divClass ["card-header"]
+              [ HH.p [HU.classes ["card-header-title"]]
+                [ HH.text "Eval" ]
+              ]
+            , HU.divClass ["card-content"] $
+              [ HH.form
+                [ HE.onSubmit \e -> Just (DoEval e) ] $
+                [ HU.divClass ["field has-addons"]
+                  [ HU.divClass ["control is-expanded"]
+                    [ HH.input
+                      [ HU.classes ["input is-fullwidth"]
+                      , HP.name "eval-code"
+                      , HP.value st.eval_code
+                      , HE.onValueInput (Just <<< ChangeEvalCode)
+                      , HP.placeholder "private_message('Peter','Hallo!')"
+                      ]
+                    ]
+                  , HU.divClass (["control"] <> (if st.evaling then ["is-loading"] else []))
+                    [ let enabled = st.eval_code /= "" && not st.evaling && isNothing st.errorMessage in
+                      HH.button
+                      [ HP.disabled (not enabled)
+                      , HU.classes $ ["button"] <> (if enabled then ["is-primary"] else [])
+                      ]
+                      [ HH.text "Run" ]
+                    ]
+                  ]
+                ]
+              ] <>
+              (case st.eval_message of
+                  Nothing -> []
+                  Just "" -> [ HH.pre_ [ HH.text "– no output –" ] ]
+                  Just msg -> [ HH.pre_ [ HH.text msg ] ]
+              )
             ]
           ]
         ]
@@ -192,10 +237,11 @@ handleAction = case _ of
               , deployedCode = code
               })
         else Console.log "status code not 200" -- (show response)
+    handleAction ReloadMemory
     _ <- H.subscribe timer
     pure unit
 
-  Tick -> do
+  ReloadMemory -> do
     st <- H.get
     response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
     case response_or_error of
@@ -224,6 +270,27 @@ handleAction = case _ of
               pure unit
           else Console.log "status code not 200" -- (show response)
 
+  ChangeEvalCode s -> H.modify_ (_ { eval_code = s})
+
+  DoEval event -> do
+    H.liftEffect $ Event.preventDefault event
+    st <- H.get
+    unless st.evaling $ do
+      H.modify_ (_{evaling = true, eval_message = Nothing })
+      let req = Record.union st.loginData { mod_code: st.editorCode, eval_code: st.eval_code }
+      response_or_error <- H.liftAff $ AX.post AXRF.json "/api/eval_code" (Just (AXRB.Json (encodeJson req)))
+      case response_or_error of
+        Left err -> Console.log (AX.printError err)
+        Right response -> do
+          if response.status == StatusCode 200
+          then case decodeJson response.body of
+            Left err -> Console.log (printJsonDecodeError err)
+            Right ({output}::{output :: String}) -> do
+              H.modify_ (_ { eval_message = Just output })
+              handleAction ReloadMemory
+          else Console.log "status code not 200" -- (show response)
+      H.modify_ (_{evaling = false})
+
   HandleAceUpdate (AceComponent.TextChanged code) -> do
     H.modify_ (_{ editorCode = code })
     updateTestStatus
@@ -231,8 +298,8 @@ handleAction = case _ of
 timer :: forall m. MonadAff m => EventSource m Action
 timer = EventSource.affEventSource \emitter -> do
   fiber <- Aff.forkAff $ forever do
-    Aff.delay $ Milliseconds 1000.0
-    EventSource.emit emitter Tick
+    Aff.delay $ Milliseconds 10000.0
+    EventSource.emit emitter ReloadMemory
 
   pure $ EventSource.Finalizer do
     Aff.killFiber (error "Event source finalized") fiber
