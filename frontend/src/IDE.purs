@@ -3,6 +3,7 @@ module IDE where
 import Prelude
 
 import Data.Const (Const)
+import Data.Foldable (foldMap)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
@@ -136,7 +137,8 @@ render st =
               [ HH.p [HU.classes ["card-header-title"]]
                 [ HH.text "Memory" ]
               ]
-            ,  HH.pre_ [ HH.text st.memory ]
+            , HU.divClass ["card-content"]
+              [ HH.pre [ HU.classes ["p-0"]] [ HH.text st.memory ] ]
             ]
           ]
         , HU.divClass ["block"]
@@ -157,7 +159,8 @@ render st =
               ]
             , HU.divClass ["card-content"] $
               [ HH.form
-                [ HE.onSubmit \e -> Just (DoEval e) ] $
+                [ HU.classes ["block"]
+                , HE.onSubmit \e -> Just (DoEval e) ] $
                 [ HU.divClass ["field has-addons"]
                   [ HU.divClass ["control is-expanded"]
                     [ HH.input
@@ -179,11 +182,13 @@ render st =
                   ]
                 ]
               ] <>
-              (case st.eval_message of
-                  Nothing -> []
-                  Just "" -> [ HH.pre_ [ HH.text "– no output –" ] ]
-                  Just msg -> [ HH.pre_ [ HH.text msg ] ]
-              )
+              foldMap (\msg -> [
+                HU.divClass ["block"]
+                [ if msg == ""
+                  then HH.p [ HU.classes ["has-text-centered"] ] [ HH.text "– no output –" ]
+                  else HH.pre [ HU.classes ["p-0"] ] [ HH.text msg ]
+                ]
+              ]) st.eval_message
             ]
           ]
         ]
