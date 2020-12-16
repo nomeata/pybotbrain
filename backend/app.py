@@ -318,9 +318,9 @@ def login(botname, update, context):
     if id in settings['admins']:
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
-        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/edit_code/{botname}")
+        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/admin/")
     else:
-        update.message.reply_text(f"Sorry, but you are not my owner!\n(Your id is {update.message.from_user.id})")
+        update.message.reply_text(f"Sorry, but you are not my owner!\n(Your user id is {update.message.from_user.id}.)")
 
 def add_handlers(botname, dp):
     dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.private))
