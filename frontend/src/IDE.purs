@@ -33,16 +33,14 @@ import HTMLUtils as HU
 
 type Slot = H.Slot (Const Void) Output
 
-type LoginData =
-   { botname :: String
-   , password :: String
-   }
+type LoginData = { password :: String }
 
 data Output
  = Logout
 
 type State
  = { loginData :: LoginData
+   , botname :: String
    , editorCode :: String
    , testCode :: String
    , deployedCode :: String
@@ -76,6 +74,7 @@ component =
   H.mkComponent
     { initialState: \loginData ->
       { loginData
+      , botname: "…"
       , editorCode: ""
       , testCode: ""
       , deployedCode: ""
@@ -99,7 +98,7 @@ render st =
   HH.section [HU.classes ["section"]]
   [ HU.divClass []
     [ HH.h1 [ HU.classes ["title"] ]
-      [ HH.text ("This is the brain of " <> st.loginData.botname) ]
+      [ HH.text ("This is the brain of " <> st.botname) ]
     , HU.divClass ["columns"]
       [ HU.divClass ["column","is-7"]
         [ HU.divClass ["card"]
@@ -242,12 +241,13 @@ handleAction = case _ of
         if response.status == StatusCode 200
         then case decodeJson response.body of
           Left err -> Console.log (printJsonDecodeError err)
-          Right ({code}::{code :: String}) -> do
-            void $ H.query _ace unit $ H.tell (AceComponent.InitText code)
+          Right (r::{botname :: String, code :: String}) -> do
+            void $ H.query _ace unit $ H.tell (AceComponent.InitText r.code)
             H.modify_ (_
-              { testCode = code
-              , editorCode = code
-              , deployedCode = code
+              { botname = r.botname
+              , testCode = r.code
+              , editorCode = r.code
+              , deployedCode = r.code
               })
         else Console.log "status code not 200" -- (show response)
     handleAction ReloadMemory

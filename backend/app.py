@@ -98,21 +98,16 @@ def set_state(botname, new_state):
         Item={'bot':botname, 'id': 'state', 'state': json.dumps(new_state) }
     )
 
-def get_pws(botname):
-    result = table.get_item(Key={'bot': botname, 'id': 'pw'})
+def check_pw(pw):
+    result = table.get_item(Key={'bot': '#pwds', 'id': pw})
     if 'Item' in result:
-        return result['Item']['pws']
+        return result['Item']['botname']
     else:
         return None
 
 def add_pw(botname, pw):
-    table.update_item(
-        Key = { 'bot':botname,  'id': 'pw' },
-        UpdateExpression = "SET pws = list_append(:vals, if_not_exists(pws, :empty))",
-        ExpressionAttributeValues = {
-            ":vals" : [ pw ],
-            ":empty": []
-        }
+    table.put_item(
+        Item={'bot':"#pwds", 'id': pw, 'botname': botname }
     )
 
 def note_error(botname, e):
@@ -137,23 +132,14 @@ def last_errors(botname):
         return []
 
 def api_authenticate():
-    if not request.json or not 'botname' in request.json and not 'password' in request.json:
+    if not request.json or not 'password' in request.json:
         abort(make_response(json.dumps({'error': "Missing login data"}), 400))
 
-    botname = request.json['botname']
-    if not botname:
-        abort(make_response(json.dumps({'error': f'Botname cannot be empty'}), 403))
-
-    pws = get_pws(botname)
-    if pws is None:
-        abort(make_response(json.dumps({'error': f'I do not know any bot called {botname}'}), 403))
-    elif pws == []:
-        abort(make_response(json.dumps({'error': 'No passwords set. Ask the bot with /login!'}), 403))
+    botname = check_pw(request.json['password'])
+    if botname is None:
+        abort(make_response(json.dumps({'error': f'Sorry, invalid password. Ask the bot with /login!'}), 403))
     else:
-        if request.json['password'] in pws:
-            return botname
-        else:
-            abort(make_response(json.dumps({'error': 'Password not correct. Ask the bot with /login to get a password!'}), 403))
+        return botname
 
 @app.route('/api/login', methods=('POST',))
 def login_test():
@@ -164,6 +150,7 @@ def login_test():
 def get_code():
     botname = api_authenticate()
     return json.dumps({
+        'botname': botname,
         'code': get_user_code(botname)
     })
 
@@ -249,8 +236,7 @@ def edit_code(botname):
     settings = get_bot_settings(botname)
     pw = request.cookies.get(f"bot-{botname}-pw")
     print("cookie:", pw)
-    pws = get_pws(botname)
-    if not pw or pw not in pws:
+    if check_pw(pw) != botname:
         err = ""
         if request.method == 'POST' and 'pw' in request.form:
             pw = request.form['pw']
@@ -322,7 +308,7 @@ def login(botname, update, context):
     if id in settings['admins']:
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
-        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/admin/")
+        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/")
     else:
         update.message.reply_text(f"Sorry, but you are not my owner!\n(Your user id is {update.message.from_user.id}.)")
 

@@ -29,20 +29,17 @@ import HTMLUtils as HU
 type Slot = H.Slot (Const Void) LoginData
 
 type LoginData =
-   { botname :: String
-   , password :: String
+   { password :: String
    }
 
 type State =
-   { botname :: String
-   , password :: String
+   { password :: String
    , loading :: Boolean
    , lastError :: Maybe String
    }
 
 data LoginAction
   = Initialize
-  | ChangeBotname String
   | ChangePassword String
   | DoLogin Event
 
@@ -50,7 +47,6 @@ component :: forall f i m. MonadAff m => H.Component HH.HTML f i LoginData m
 component =
   H.mkComponent
     { initialState: \_ -> {
-        botname : "",
         password: "",
         lastError: Nothing,
         loading: false
@@ -77,17 +73,6 @@ renderLogin st = HU.fullHeight $
           [ HU.divClass ["control"]
             [ HH.input
               [ HU.classes ["input", "is-large", "has-text-centered"]
-              , HP.name "botname"
-              , HP.value st.botname
-              , HE.onValueInput (Just <<< ChangeBotname)
-              , HP.placeholder "NameOfYourBot"
-              ]
-            ]
-          ]
-        , HU.divClass ["field"]
-          [ HU.divClass ["control"]
-            [ HH.input
-              [ HU.classes ["input", "is-large", "has-text-centered"]
               -- , HP.type_ HP.InputPassword
               , HP.name "password"
               , HP.value st.password
@@ -109,31 +94,26 @@ renderLogin st = HU.fullHeight $
       ]
     ]
   where
-    can_login = not st.loading && st.botname /= "" && String.length st.password == 6
+    can_login = not st.loading && String.length st.password == 6
 
 handleLoginAction :: forall m.  MonadAff m => LoginAction -> H.HalogenM State LoginAction () LoginData m Unit
 handleLoginAction = case _ of
 
   Initialize -> do
-    loginData <- H.liftEffect $ do
+    pw <- H.liftEffect $ do
       w <- window
       s <- localStorage w
-      bn <- Storage.getItem "botname" s
-      bpw <- Storage.getItem "password" s
-      pure ({botname: _, password: _} <$> bn <*> bpw)
-    for_ loginData $ \{botname, password} ->
-      H.modify_ (_ { botname = botname, password = password })
-
-  ChangeBotname s -> H.modify_ (_ { botname = s})
+      Storage.getItem "password" s
+    for_ pw $ \password -> H.modify_ (_ {password = password })
 
   ChangePassword s -> H.modify_ (_ { password = s})
 
   DoLogin event -> do
     H.liftEffect $ Event.preventDefault event
-    {botname, password} <- H.get
+    {password} <- H.get
 
     H.modify_ (_ { loading = true })
-    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/login" (Just (AXRB.Json (encodeJson {botname, password})))
+    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/login" (Just (AXRB.Json (encodeJson {password})))
     H.modify_ (_ { loading = false} )
     case response_or_error of
       Left err -> H.modify_ (_ {lastError = Just (AX.printError err) })
@@ -143,9 +123,8 @@ handleLoginAction = case _ of
           H.liftEffect $ do
             w <- window
             s <- localStorage w
-            Storage.setItem "botname" botname s
             Storage.setItem "password" password s
-          H.raise {botname, password}
+          H.raise {password}
         else case decodeJson response.body of
           Left err -> H.modify_ (_ {lastError = Just (printJsonDecodeError err) })
           Right ({error}::{error :: String}) -> H.modify_ (_ {lastError = Just error })
