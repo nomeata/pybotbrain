@@ -14,7 +14,7 @@ import boto3
 from boto3.dynamodb.conditions import *
 
 from flask import Flask
-from flask import request, abort, render_template, redirect, url_for, make_response, send_from_directory
+from flask import request, abort, redirect, make_response, send_from_directory
 
 from telegram import Update, Bot
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
@@ -110,24 +110,30 @@ def add_pw(botname, pw):
         Item={'bot':"#pwds", 'id': pw, 'botname': botname }
     )
 
-def note_error(botname, e):
-    logger.warn("Exception encountered: %s", e)
+def note_event(botname, e):
+    #logger.warn("Exception encountered: %s", e)
+
+    # this should ideally be different dynamodb items,
+    # with a TTL and fetched with a query
+    # or at least shorten the event list…
+    e['when'] = int(time.time())
     table.update_item(
-        Key = { 'bot':botname,  'id': 'errors' },
-        UpdateExpression = "SET errors = list_append(:vals, if_not_exists(errors, :empty))",
+        Key = { 'bot':botname,  'id': 'events' },
+        UpdateExpression = "SET events = list_append(:vals, if_not_exists(events, :empty))",
         ExpressionAttributeValues = {
-            ":vals" : [ { "when": int(time.time()), "msg": str(e) } ],
+            ":vals" : [ e ],
             ":empty": []
         }
     )
 
-def last_errors(botname):
-    result = table.get_item(Key={'bot': botname, 'id':'errors'})
+def get_events(botname):
+    result = table.get_item(Key={'bot': botname, 'id':'events'})
     if "Item" in result:
-        errs = result['Item']['errors']
-        for e in errs:
-            e['when'] = datetime.datetime.fromtimestamp(e['when'])
-        return errs
+        events = result['Item']['events']
+        for e in events:
+            # remove Decimal wrapper, doesn’t work with json.dumps
+            e['when'] = int(e['when'])
+        return events
     else:
         return []
 
@@ -155,10 +161,11 @@ def get_code():
     })
 
 @app.route('/api/get_state', methods=('POST',))
-def api_get_statue():
+def api_get_state():
     botname = api_authenticate()
     return json.dumps({
-        'state': pprint.pformat(get_state(botname), indent=2,width=50)
+        'state': pprint.pformat(get_state(botname), indent=2,width=50),
+        'events': get_events(botname)
     })
 
 @app.route('/api/test_code', methods=('POST',))
@@ -191,6 +198,8 @@ def eval_code():
     mod_code = request.json['mod_code']
     eval_code = request.json['eval_code']
     state = get_state(botname)
+    e = {}
+    e['trigger'] = 'eval'
 
     f = io.StringIO()
     try:
@@ -202,9 +211,13 @@ def eval_code():
                 exec(compile(mod_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
                 ret = exec(compile(eval_code,filename = "eval-code.py", mode = 'single'), mod.__dict__)
     except:
-        return json.dumps({'output': str(sys.exc_info()[1])})
+        exception = str(sys.exc_info()[1])
+        e['exception'] = exception
+        note_event(botname, e)
+        return json.dumps({'output': exception})
     else:
         set_state(botname, state)
+        note_event(botname, e)
         return json.dumps({'output':f.getvalue() })
 
 @app.route("/")
@@ -231,58 +244,14 @@ def set_code():
     set_user_code(botname, request.json['new_code'])
     return json.dumps({})
 
-@app.route('/edit_code/<botname>', methods=('GET', 'POST'))
-def edit_code(botname):
-    settings = get_bot_settings(botname)
-    pw = request.cookies.get(f"bot-{botname}-pw")
-    print("cookie:", pw)
-    if check_pw(pw) != botname:
-        err = ""
-        if request.method == 'POST' and 'pw' in request.form:
-            pw = request.form['pw']
-            if pw in pws:
-                resp = redirect(url_for('edit_code', botname = botname))
-                resp.set_cookie(f"bot-{botname}-pw", pw)
-                return resp
-            err = "Sorry, wrong code"
-        return render_template('login.html', err = err)
-
-    if request.method == 'POST':
-        if 'code' in request.form:
-            set_user_code(botname, request.form['code'])
-            return redirect(url_for('edit_code', botname = botname))
-        if 'eval' in request.form:
-            eval_user_code(botname, request.form['eval'])
-            return redirect(url_for('edit_code', botname = botname))
-        if 'logout' in request.form:
-            resp = redirect(url_for('edit_code', botname = botname))
-            resp.delete_cookie(f"bot-{botname}-pw")
-            return resp
-
-    return render_template('edit_code.html',
-        code = get_user_code(botname),
-        state = get_state(botname),
-        errors = last_errors(botname)
-    )
-
-def eval_user_code(botname, code):
-    state = get_state(botname)
-    mod_code = get_user_code(botname)
-    try:
-        from types import ModuleType
-        mod = ModuleType('botcode')
-        mod.memory = state
-        exec(mod_code, mod.__dict__)
-        exec(code, mod.__dict__)
-    except:
-        note_error(botname, sys.exc_info()[1])
-    else:
-        set_state(botname, state)
-
 def echo(botname, update, context):
     state = get_state(botname)
     mod_code = get_user_code(botname)
     response = None
+    e = {}
+    e['trigger'] = update.message.chat.type
+    e['from'] = update.message.from_user.first_name
+    e['text'] = update.message.text
     try:
         from types import ModuleType
         mod = ModuleType('botcode')
@@ -296,16 +265,19 @@ def echo(botname, update, context):
             if 'group_message' in mod.__dict__:
                 response = mod.group_message(update.message.from_user.first_name, update.message.text)
     except:
-        note_error(botname, sys.exc_info()[1])
+        e['exception'] = str(sys.exc_info()[1])
     else:
         if response is not None:
+            e['response'] = response
             context.bot.send_message(chat_id = update.message.chat.id, text = response)
         set_state(botname, state)
+    note_event(botname, e)
 
 def login(botname, update, context):
     id = update.message.from_user.id
     settings = get_bot_settings(botname)
     if id in settings['admins']:
+        note_event(botname, {'trigger' : "login"})
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
         update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/")

@@ -6,9 +6,6 @@ import Data.Symbol (SProxy(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
-import Web.HTML (window)
-import Web.HTML.Window (localStorage)
-import Web.Storage.Storage as Storage
 
 import Login as Login
 import IDE as IDE

@@ -3,7 +3,7 @@ module IDE where
 import Prelude
 
 import Data.Const (Const)
-import Data.Foldable (foldMap)
+import Data.Foldable (foldMap, null)
 import Data.Maybe (Maybe(..), isNothing)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
@@ -19,7 +19,7 @@ import Affjax as AX
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
-import Data.Argonaut (encodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut (Json, stringify, encodeJson, decodeJson, printJsonDecodeError)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -48,6 +48,7 @@ type State
    , testAgain :: Boolean
    , errorMessage :: Maybe String
    , memory :: String
+   , events :: Array Json
    , evaling :: Boolean
    , eval_code :: String
    , eval_message :: Maybe String
@@ -83,6 +84,7 @@ component =
       , testAgain: false
       , errorMessage: Nothing
       , memory: ""
+      , events: []
       , evaling: false
       , eval_code: ""
       , eval_message: Nothing
@@ -162,8 +164,10 @@ render st =
               [ HH.p [HU.classes ["card-header-title"]]
                 [ HH.text "Log" ]
               ]
-            , HU.divClass ["card-content"]
-              [ HH.text "None yet!" ]
+            , HU.divClass ["card-content"] $
+              if null st.events
+              then [ HH.text "None yet!" ]
+              else map (\e -> HH.text (stringify e)) st.events
             ]
           ]
         , HU.divClass ["block"]
@@ -272,8 +276,8 @@ handleAction = case _ of
         if response.status == StatusCode 200
         then case decodeJson response.body of
           Left err -> Console.log (printJsonDecodeError err)
-          Right ({state}::{state :: String}) -> do
-            H.modify_ (_ { memory = state })
+          Right (r::{state :: String, events :: Array Json}) -> do
+            H.modify_ (_ { memory = r.state, events = r.events })
         else Console.log "status code not 200" -- (show response)
 
   DoLogout -> do
