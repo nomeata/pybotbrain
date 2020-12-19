@@ -7,7 +7,7 @@ import Ace.EditSession as Session
 import Ace.Editor as Editor
 import Ace.UndoManager as UndoManager
 import Ace.Types (Editor)
-import Data.Foldable (traverse_)
+import Data.Foldable (traverse_, for_)
 import Data.Maybe (Maybe(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
@@ -17,7 +17,9 @@ import Halogen.Query.EventSource as ES
 
 type Slot = H.Slot Query Output
 
-data Query a = InitText String a
+data Query a
+  = InitText String a
+  | SetText String a
 
 data Output = TextChanged String
 
@@ -83,12 +85,17 @@ handleQuery :: forall m a. MonadAff m => Query a -> H.HalogenM State Action () O
 handleQuery = case _ of
   InitText text next -> do
     maybeEditor <- H.gets _.editor
-    case maybeEditor of
-      Nothing -> pure unit
-      Just editor -> do
-        H.liftEffect $ do
-          void $ Editor.setValue text (Just 1) editor
-          Editor.getSession editor >>= Session.getUndoManager >>= UndoManager.reset
+    for_ maybeEditor $ \editor -> H.liftEffect $ do
+      void $ Editor.setValue text (Just 1) editor
+      Editor.getSession editor >>= Session.getUndoManager >>= UndoManager.reset
+
+    H.raise $ TextChanged text
+    pure (Just next)
+
+  SetText text next -> do
+    maybeEditor <- H.gets _.editor
+    for_ maybeEditor $ \editor -> H.liftEffect $ do
+      void $ Editor.setValue text (Just 1) editor
 
     H.raise $ TextChanged text
     pure (Just next)

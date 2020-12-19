@@ -57,6 +57,7 @@ data Action
   = Initialize
   | ReloadMemory
   | Deploy
+  | Revert
   | DoEval Event
   | ChangeEvalCode String
   | HandleAceUpdate AceComponent.Output
@@ -125,11 +126,18 @@ render st =
             , HU.divClass ["card-footer"]
               [ let enabled = isNothing st.errorMessage && st.deployedCode /= st.editorCode in
                 HH.button
-                [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-primary"] else []))
+                [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-primary"] else ["is-black"]))
                 , HP.disabled (not enabled)
                 , HE.onClick \_ -> Just Deploy
                 ]
                 [ HH.text "Deploy" ]
+              , let enabled = st.deployedCode /= st.editorCode in
+                HH.button
+                [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-dark"] else ["is-black"]))
+                , HP.disabled (not enabled)
+                , HE.onClick \_ -> Just Revert
+                ]
+                [ HH.text "Revert" ]
               , HH.button
                 [ HU.classes ["card-footer-item", "button", "is-dark"]
                 , HE.onClick \_ -> Just DoLogout
@@ -208,6 +216,7 @@ reallyUpdateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action Chil
 reallyUpdateTestStatus = do
   st <- H.get
   let req = Record.union st.loginData { new_code: st.editorCode }
+  H.modify_ (_{errorMessage = Just "Checking… 🤔"})
   response_or_error <- H.liftAff $ AX.post AXRF.json "/api/test_code" (Just (AXRB.Json (encodeJson req)))
   case response_or_error of
     Left err -> Console.log (AX.printError err)
@@ -285,6 +294,10 @@ handleAction = case _ of
             Right ({}::{}) -> do
               pure unit
           else Console.log "status code not 200" -- (show response)
+
+  Revert ->  do
+    st <- H.get
+    void $ H.query _ace unit $ H.tell (AceComponent.SetText st.deployedCode)
 
   ChangeEvalCode s -> H.modify_ (_ { eval_code = s})
 
