@@ -31,12 +31,15 @@ import Web.Event.Event (Event)
 import Record as Record
 import HTMLUtils as HU
 
-type Slot = H.Slot (Const Void) Void
+type Slot = H.Slot (Const Void) Output
 
 type LoginData =
    { botname :: String
    , password :: String
    }
+
+data Output
+ = Logout
 
 type State
  = { loginData :: LoginData
@@ -59,6 +62,7 @@ data Action
   | DoEval Event
   | ChangeEvalCode String
   | HandleAceUpdate AceComponent.Output
+  | DoLogout
 
 type ChildSlots =
   ( ace :: AceComponent.Slot Unit
@@ -67,7 +71,7 @@ type ChildSlots =
 _ace = SProxy :: SProxy "ace"
 
 -- | The main UI component definition.
-component :: forall f o m. MonadAff m => H.Component HH.HTML f LoginData o m
+component :: forall f m. MonadAff m => H.Component HH.HTML f LoginData Output m
 component =
   H.mkComponent
     { initialState: \loginData ->
@@ -95,8 +99,7 @@ render st =
   HH.section [HU.classes ["section"]]
   [ HU.divClass []
     [ HH.h1 [ HU.classes ["title"] ]
-      [ HH.text ("This is the brain of " <> st.loginData.botname)
-      ]
+      [ HH.text ("This is the brain of " <> st.loginData.botname) ]
     , HU.divClass ["columns"]
       [ HU.divClass ["column","is-7"]
         [ HU.divClass ["card"]
@@ -128,6 +131,11 @@ render st =
                 , HE.onClick \_ -> Just Deploy
                 ]
                 [ HH.text "Deploy" ]
+              , HH.button
+                [ HU.classes ["card-footer-item", "button", "is-dark"]
+                , HE.onClick \_ -> Just DoLogout
+                ]
+                [ HH.text "Logout" ]
               ]
             ]
           ]
@@ -223,7 +231,7 @@ updateTestStatus = do
       reallyUpdateTestStatus
     H.modify_ (_{loadingTest = false})
 
-handleAction :: forall o m. MonadAff m => Action -> H.HalogenM State Action ChildSlots o m Unit
+handleAction :: forall m. MonadAff m => Action -> H.HalogenM State Action ChildSlots Output m Unit
 handleAction = case _ of
   Initialize -> do
     st <- H.get
@@ -258,6 +266,9 @@ handleAction = case _ of
           Right ({state}::{state :: String}) -> do
             H.modify_ (_ { memory = state })
         else Console.log "status code not 200" -- (show response)
+
+  DoLogout -> do
+    H.raise Logout
 
   Deploy -> do
     st <- H.get

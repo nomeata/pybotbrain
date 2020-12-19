@@ -220,6 +220,10 @@ def eval_code():
         set_state(botname, state)
         return json.dumps({'output':f.getvalue() })
 
+@app.route("/")
+def index():
+    return redirect("/admin/")
+
 @app.route('/admin')
 def send_frontend_index_redir():
     return redirect("/admin/")
@@ -356,10 +360,6 @@ def set_webhook(botname):
     bot.set_webhook(url = url)
     print(f"Web hook set to {url}")
     return f"Web hook set to {url}"
-
-@app.route("/")
-def index():
-    return "Hello"
 
 # run a local bot handler
 def local(botname):
