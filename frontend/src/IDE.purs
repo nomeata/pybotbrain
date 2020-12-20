@@ -19,7 +19,7 @@ import Affjax as AX
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
-import Data.Argonaut (Json, stringify, encodeJson, decodeJson, printJsonDecodeError)
+import Data.Argonaut (class DecodeJson, encodeJson, decodeJson, printJsonDecodeError, getField, getFieldOptional)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -55,7 +55,7 @@ type State
    , testAgain :: Boolean
    , errorMessage :: ErrorMessage
    , memory :: String
-   , events :: Array Json
+   , events :: Array LogEvent
    , evaling :: Boolean
    , eval_code :: String
    , eval_message :: Maybe String
@@ -76,6 +76,26 @@ type ChildSlots =
   )
 
 _ace = SProxy :: SProxy "ace"
+
+data LogEvent
+  = EvalEvent { exception :: Maybe String }
+  | MessageEvent { trigger :: String, from :: String, text :: String, response :: Maybe String, exception :: Maybe String }
+  | OtherEvent
+
+instance encodeLogEvent :: DecodeJson LogEvent where
+    decodeJson json = do
+       obj <- decodeJson json
+       trigger <- getField obj "trigger"
+       case trigger of
+         "eval" -> do
+            exception <- getFieldOptional obj "exception"
+            pure $ EvalEvent {exception}
+         _ -> do
+            from <- getField obj "from"
+            text <- getField obj "text"
+            response <- getFieldOptional obj "response"
+            exception <- getFieldOptional obj "exception"
+            pure $ MessageEvent { trigger, from, text, response, exception }
 
 -- | The main UI component definition.
 component :: forall f m. MonadAff m => H.Component HH.HTML f LoginData Output m
@@ -175,7 +195,18 @@ render st =
             , HU.divClass ["card-content"] $
               if null st.events
               then [ HH.text "None yet!" ]
-              else map (\e -> HH.text (stringify e)) st.events
+              else foldMap (case _ of
+                  OtherEvent -> []
+                  EvalEvent e ->
+                    [ HH.p_ [ HH.text "🔬 Eval" ]] <>
+                    foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
+                  MessageEvent e ->
+                    [ HH.p_ [ HH.text $ "⬅️ " <> e.from <> ": " <> e.text ]] <>
+                    foldMap (\s ->
+                      [ HH.p_ [ HH.text $ "➡️ " <> st.botname <> ": " <> s ]]
+                    ) e.response <>
+                    foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
+                ) st.events
             ]
           ]
         , HU.divClass ["block"]
@@ -284,7 +315,7 @@ handleAction = case _ of
         if response.status == StatusCode 200
         then case decodeJson response.body of
           Left err -> Console.log (printJsonDecodeError err)
-          Right (r::{state :: String, events :: Array Json}) -> do
+          Right (r::{state :: String, events :: Array LogEvent}) -> do
             H.modify_ (_ { memory = r.state, events = r.events })
         else Console.log "status code not 200" -- (show response)
 
