@@ -68,6 +68,7 @@ handleAction = case _ of
       H.liftEffect $ Editor.setFontSize "120%" editor
       session <- H.liftEffect $ Editor.getSession editor
       H.liftEffect $ Session.setMode "ace/mode/python" session
+      H.liftEffect $ Session.setUseSoftTabs true session
       H.modify_ (_ { editor = Just editor })
       void $ H.subscribe $ ES.effectEventSource \emitter -> do
         Session.onChange session (\_ -> ES.emit emitter HandleChange)

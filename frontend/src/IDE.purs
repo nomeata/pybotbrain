@@ -4,7 +4,7 @@ import Prelude
 
 import Data.Const (Const)
 import Data.Foldable (foldMap, null)
-import Data.Maybe (Maybe(..), isNothing)
+import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
 import Control.Monad.Loops (whileM_)
@@ -38,6 +38,13 @@ type LoginData = { password :: String }
 data Output
  = Logout
 
+data ErrorMessage
+ = Checking
+ | AllGood
+ | Error String
+
+derive instance eqErrorMessage :: Eq ErrorMessage
+
 type State
  = { loginData :: LoginData
    , botname :: String
@@ -46,7 +53,7 @@ type State
    , deployedCode :: String
    , loadingTest :: Boolean
    , testAgain :: Boolean
-   , errorMessage :: Maybe String
+   , errorMessage :: ErrorMessage
    , memory :: String
    , events :: Array Json
    , evaling :: Boolean
@@ -82,7 +89,7 @@ component =
       , deployedCode: ""
       , loadingTest: false
       , testAgain: false
-      , errorMessage: Nothing
+      , errorMessage: AllGood
       , memory: ""
       , events: []
       , evaling: false
@@ -107,7 +114,7 @@ render st =
         [ HU.divClass ["card"]
           [ HU.divClass ["card-header"]
             [ HH.p [HU.classes ["card-header-title"]]
-              [ HH.text "Code" ]
+              [ HH.text "⌨️ Code" ]
             ]
           , HH.slot _ace unit AceComponent.component unit (Just <<< HandleAceUpdate)
           ]
@@ -117,34 +124,35 @@ render st =
           [ HU.divClass ["card"]
             [ HU.divClass ["card-header"]
               [ HH.p [HU.classes ["card-header-title"]]
-                [ HH.text "Status" ]
+                [ HH.text "🚦 Status" ]
               ]
             , HU.divClass ["card-content"]
               [ HH.p_ $
                 case st.errorMessage of
-                  Nothing -> [ HH.text "All good! 👍" ]
-                  Just err -> [ HH.text err ]
+                  AllGood -> [ HH.text "😊 All good!" ]
+                  Checking -> [ HH.text "🤔 Checking!" ]
+                  Error err -> [ HH.text ("😬 " <> err) ]
               ]
             , HU.divClass ["card-footer"]
-              [ let enabled = isNothing st.errorMessage && st.deployedCode /= st.editorCode in
+              [ let enabled = st.errorMessage == AllGood && st.deployedCode /= st.editorCode in
                 HH.button
                 [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-primary"] else ["is-black"]))
                 , HP.disabled (not enabled)
                 , HE.onClick \_ -> Just Deploy
                 ]
-                [ HH.text "Deploy" ]
+                [ HH.text "🚀 Deploy" ]
               , let enabled = st.deployedCode /= st.editorCode in
                 HH.button
                 [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-dark"] else ["is-black"]))
                 , HP.disabled (not enabled)
                 , HE.onClick \_ -> Just Revert
                 ]
-                [ HH.text "Revert" ]
+                [ HH.text "♻️ Revert" ]
               , HH.button
                 [ HU.classes ["card-footer-item", "button", "is-dark"]
                 , HE.onClick \_ -> Just DoLogout
                 ]
-                [ HH.text "Logout" ]
+                [ HH.text "🚪 Logout" ]
               ]
             ]
           ]
@@ -152,7 +160,7 @@ render st =
           [ HU.divClass ["card"]
             [ HU.divClass ["card-header"]
               [ HH.p [HU.classes ["card-header-title"]]
-                [ HH.text "Memory" ]
+                [ HH.text "🧠 Memory" ]
               ]
             , HU.divClass ["card-content"]
               [ HH.pre [ HU.classes ["p-0"]] [ HH.text st.memory ] ]
@@ -162,7 +170,7 @@ render st =
           [ HU.divClass ["card"]
             [ HU.divClass ["card-header"]
               [ HH.p [HU.classes ["card-header-title"]]
-                [ HH.text "Log" ]
+                [ HH.text "📓 Log" ]
               ]
             , HU.divClass ["card-content"] $
               if null st.events
@@ -174,7 +182,7 @@ render st =
           [ HU.divClass ["card"]
             [ HU.divClass ["card-header"]
               [ HH.p [HU.classes ["card-header-title"]]
-                [ HH.text "Eval" ]
+                [ HH.text "🔬 Eval" ]
               ]
             , HU.divClass ["card-content"] $
               [ HH.form
@@ -191,7 +199,7 @@ render st =
                       ]
                     ]
                   , HU.divClass (["control"] <> (if st.evaling then ["is-loading"] else []))
-                    [ let enabled = st.eval_code /= "" && not st.evaling && isNothing st.errorMessage in
+                    [ let enabled = st.eval_code /= "" && not st.evaling && st.errorMessage == AllGood in
                       HH.button
                       [ HP.disabled (not enabled)
                       , HU.classes $ ["button"] <> (if enabled then ["is-primary"] else [])
@@ -220,7 +228,7 @@ reallyUpdateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action Chil
 reallyUpdateTestStatus = do
   st <- H.get
   let req = Record.union st.loginData { new_code: st.editorCode }
-  H.modify_ (_{errorMessage = Just "Checking… 🤔"})
+  H.modify_ (_{errorMessage = Checking })
   response_or_error <- H.liftAff $ AX.post AXRF.json "/api/test_code" (Just (AXRB.Json (encodeJson req)))
   case response_or_error of
     Left err -> Console.log (AX.printError err)
@@ -229,7 +237,7 @@ reallyUpdateTestStatus = do
       then case decodeJson response.body of
         Left err -> Console.log (printJsonDecodeError err)
         Right ({error}::{error :: Maybe String}) -> do
-          H.modify_ (_{errorMessage = error})
+          H.modify_ (_{errorMessage = maybe AllGood Error error})
       else Console.log "status code not 200" -- (show response)
 
 updateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action ChildSlots o m Unit
