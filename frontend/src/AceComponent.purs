@@ -61,8 +61,8 @@ handleAction = case _ of
   Initialize -> do
     H.getHTMLElementRef (H.RefLabel "ace") >>= traverse_ \element -> do
       editor <- H.liftEffect $ Ace.editNode element Ace.ace
-      H.liftEffect $ Editor.setMinLines 25 editor
-      H.liftEffect $ Editor.setMaxLines 1000 editor
+      H.liftEffect $ Editor.setMinLines 30 editor
+      H.liftEffect $ Editor.setMaxLines 30 editor
       H.liftEffect $ Editor.setAutoScrollEditorIntoView true editor
       H.liftEffect $ Editor.setTheme "ace/theme/terminal" editor
       H.liftEffect $ Editor.setFontSize "120%" editor
