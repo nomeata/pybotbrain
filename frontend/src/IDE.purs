@@ -90,12 +90,19 @@ instance encodeLogEvent :: DecodeJson LogEvent where
          "eval" -> do
             exception <- getFieldOptional obj "exception"
             pure $ EvalEvent {exception}
-         _ -> do
+         "private" -> do
             from <- getField obj "from"
             text <- getField obj "text"
             response <- getFieldOptional obj "response"
             exception <- getFieldOptional obj "exception"
             pure $ MessageEvent { trigger, from, text, response, exception }
+         "group" -> do
+            from <- getField obj "from"
+            text <- getField obj "text"
+            response <- getFieldOptional obj "response"
+            exception <- getFieldOptional obj "exception"
+            pure $ MessageEvent { trigger, from, text, response, exception }
+         _ -> pure OtherEvent
 
 -- | The main UI component definition.
 component :: forall f m. MonadAff m => H.Component HH.HTML f LoginData Output m
