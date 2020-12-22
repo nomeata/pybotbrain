@@ -18,9 +18,9 @@ obvious syntax error are caught before they try to press “Deploy”. And alrea
 with very very simple programming skills (`if`, string comparison) the kids can
 write, for example, elaborate interactive fiction.
 
-![Interaction with a telegram bot](screenshot-telegram.png)
-
-![The corresponding control panel](screenshot-admin.png)
+Interaction with the bot                                      | The web interface
+:------------------------------------------------------------:|:--------------------------------------------------------:
+![Interaction with a telegram bot](screenshot-telegram.png)   | ![The corresponding control panel](screenshot-admin.png)
 
 
 ## Can I use it?
