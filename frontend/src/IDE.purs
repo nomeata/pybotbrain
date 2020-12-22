@@ -3,7 +3,7 @@ module IDE where
 import Prelude
 
 import Data.Const (Const)
-import Data.Foldable (foldMap, null, for_)
+import Data.Foldable (foldMap, null, for_, intercalate)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
@@ -82,6 +82,7 @@ _ace = SProxy :: SProxy "ace"
 data LogEvent
   = EvalEvent { exception :: Maybe String }
   | MessageEvent { trigger :: String, from :: String, text :: String, response :: Maybe String, exception :: Maybe String }
+  | LoginEvent
   | OtherEvent
 
 instance encodeLogEvent :: DecodeJson LogEvent where
@@ -104,6 +105,7 @@ instance encodeLogEvent :: DecodeJson LogEvent where
             response <- getFieldOptional obj "response"
             exception <- getFieldOptional obj "exception"
             pure $ MessageEvent { trigger, from, text, response, exception }
+         "login" -> pure LoginEvent
          _ -> pure OtherEvent
 
 -- | The main UI component definition.
@@ -204,8 +206,11 @@ render st =
             , HU.divClass ["card-content"] $
               if null st.events
               then [ HH.text "None yet!" ]
-              else foldMap (case _ of
+              else intercalate [HH.hr [ HU.classes ["events"] ]] $
+                map (case _ of
                   OtherEvent -> []
+                  LoginEvent ->
+                    [ HH.p_ [ HH.text "🔑 Login" ]]
                   EvalEvent e ->
                     [ HH.p_ [ HH.text "🔬 Eval" ]] <>
                     foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
