@@ -3,7 +3,7 @@ module IDE where
 import Prelude
 
 import Data.Const (Const)
-import Data.Foldable (foldMap, null)
+import Data.Foldable (foldMap, null, for_)
 import Data.Maybe (Maybe(..), maybe)
 import Data.Either (Either(..))
 import Data.Symbol (SProxy(..))
@@ -19,7 +19,10 @@ import Affjax as AX
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
-import Data.Argonaut (class DecodeJson, encodeJson, decodeJson, printJsonDecodeError, getField, getFieldOptional)
+import Affjax.RequestHeader as AXRH
+import Data.HTTP.Method (Method(POST))
+import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson, printJsonDecodeError, getField, getFieldOptional)
+import Data.Argonaut.Parser (jsonParser)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
@@ -28,12 +31,11 @@ import Halogen.Query.EventSource (EventSource)
 import Halogen.Query.EventSource as EventSource
 import Web.Event.Event as Event
 import Web.Event.Event (Event)
-import Record as Record
 import HTMLUtils as HU
 
 type Slot = H.Slot (Const Void) Output
 
-type LoginData = { password :: String }
+type LoginData = { token :: String }
 
 data Output
  = Logout
@@ -261,24 +263,53 @@ render st =
     ]
   ]
 
-
-reallyUpdateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action ChildSlots o m Unit
-reallyUpdateTestStatus = do
+apiPOST :: forall m a b. MonadAff m => EncodeJson a => DecodeJson b =>
+  String -> a ->
+  H.HalogenM State Action ChildSlots Output m (Maybe b)
+apiPOST url content = do
   st <- H.get
-  let req = Record.union st.loginData { new_code: st.editorCode }
-  H.modify_ (_{errorMessage = Checking })
-  response_or_error <- H.liftAff $ AX.post AXRF.json "/api/test_code" (Just (AXRB.Json (encodeJson req)))
+  response_or_error <- H.liftAff $ AX.request $ AX.defaultRequest
+    { method = Left POST
+    , responseFormat = AXRF.string
+    , url = url
+    , content = Just (AXRB.Json (encodeJson content))
+    , headers = [ AXRH.RequestHeader "Authorization" ("Bearer " <> st.loginData.token) ]
+    }
   case response_or_error of
-    Left err -> Console.log (AX.printError err)
+    Left err -> do
+      Console.log (AX.printError err)
+      pure Nothing
     Right response -> do
       if response.status == StatusCode 200
-      then case decodeJson response.body of
-        Left err -> Console.log (printJsonDecodeError err)
-        Right ({error}::{error :: Maybe String}) -> do
-          H.modify_ (_{errorMessage = maybe AllGood Error error})
-      else Console.log "status code not 200" -- (show response)
+      then case jsonParser response.body of
+        Left err -> do
+          Console.log ("Body not JSON: " <> err)
+          pure Nothing
+        Right json -> case decodeJson json of
+          Left err -> do
+            Console.log "Foo"
+            Console.log (printJsonDecodeError err)
+            pure Nothing
+          Right x -> pure (Just x)
+        else
+          if response.status == StatusCode 401
+          then do
+            Console.log "Status code 401, logging out" -- (show response)
+            H.raise Logout
+            pure Nothing
+          else do
+            Console.log "status code not 200" -- (show response)
+            pure Nothing
 
-updateTestStatus :: forall o m. MonadAff m => H.HalogenM State Action ChildSlots o m Unit
+reallyUpdateTestStatus :: forall m. MonadAff m => H.HalogenM State Action ChildSlots Output m Unit
+reallyUpdateTestStatus = do
+  st <- H.get
+  H.modify_ (_{errorMessage = Checking })
+  r <- apiPOST "/api/test_code" { new_code : st.editorCode }
+  for_ r $ \({error}::{error :: Maybe String}) -> do
+      H.modify_ (_{errorMessage = maybe AllGood Error error})
+
+updateTestStatus :: forall m. MonadAff m => H.HalogenM State Action ChildSlots Output m Unit
 updateTestStatus = do
   H.modify_ (_{testAgain = true})
   st <- H.get
@@ -293,38 +324,24 @@ handleAction :: forall m. MonadAff m => Action -> H.HalogenM State Action ChildS
 handleAction = case _ of
   Initialize -> do
     st <- H.get
-    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_code" (Just (AXRB.Json (encodeJson st.loginData)))
-    case response_or_error of
-      Left err -> Console.log (AX.printError err)
-      Right response -> do
-        if response.status == StatusCode 200
-        then case decodeJson response.body of
-          Left err -> Console.log (printJsonDecodeError err)
-          Right (r::{botname :: String, code :: String}) -> do
-            void $ H.query _ace unit $ H.tell (AceComponent.InitText r.code)
-            H.modify_ (_
-              { botname = r.botname
-              , testCode = r.code
-              , editorCode = r.code
-              , deployedCode = r.code
-              })
-        else Console.log "status code not 200" -- (show response)
+    mbr <- apiPOST "/api/get_code" {}
+    for_ mbr $ \(r::{botname :: String, code :: String}) -> do
+      void $ H.query _ace unit $ H.tell (AceComponent.InitText r.code)
+      H.modify_ (_
+        { botname = r.botname
+        , testCode = r.code
+        , editorCode = r.code
+        , deployedCode = r.code
+        })
     handleAction ReloadMemory
     _ <- H.subscribe timer
     pure unit
 
   ReloadMemory -> do
     st <- H.get
-    response_or_error <- H.liftAff $ AX.post AXRF.json "/api/get_state" (Just (AXRB.Json (encodeJson st.loginData)))
-    case response_or_error of
-      Left err -> Console.log (AX.printError err)
-      Right response -> do
-        if response.status == StatusCode 200
-        then case decodeJson response.body of
-          Left err -> Console.log (printJsonDecodeError err)
-          Right (r::{state :: String, events :: Array LogEvent}) -> do
-            H.modify_ (_ { memory = r.state, events = r.events })
-        else Console.log "status code not 200" -- (show response)
+    mbr <- apiPOST "/api/get_state" {}
+    for_ mbr $ \(r::{state :: String, events :: Array LogEvent}) -> do
+      H.modify_ (_ { memory = r.state, events = r.events })
 
   DoLogout -> do
     H.raise Logout
@@ -333,17 +350,8 @@ handleAction = case _ of
     st <- H.get
     unless (st.loadingTest) $ do
       H.modify_ (_{ deployedCode = st.editorCode })
-      let req = Record.union st.loginData { new_code: st.editorCode }
-      response_or_error <- H.liftAff $ AX.post AXRF.json "/api/set_code" (Just (AXRB.Json (encodeJson req)))
-      case response_or_error of
-        Left err -> Console.log (AX.printError err)
-        Right response -> do
-          if response.status == StatusCode 200
-          then case decodeJson response.body of
-            Left err -> Console.log (printJsonDecodeError err)
-            Right ({}::{}) -> do
-              pure unit
-          else Console.log "status code not 200" -- (show response)
+      _ :: Maybe {} <- apiPOST "/api/set_code" { new_code: st.editorCode }
+      pure unit
 
   Revert ->  do
     st <- H.get
@@ -356,19 +364,11 @@ handleAction = case _ of
     st <- H.get
     unless st.evaling $ do
       H.modify_ (_{evaling = true, eval_message = Nothing })
-      let req = Record.union st.loginData { mod_code: st.editorCode, eval_code: st.eval_code }
-      response_or_error <- H.liftAff $ AX.post AXRF.json "/api/eval_code" (Just (AXRB.Json (encodeJson req)))
-      case response_or_error of
-        Left err -> Console.log (AX.printError err)
-        Right response -> do
-          if response.status == StatusCode 200
-          then case decodeJson response.body of
-            Left err -> Console.log (printJsonDecodeError err)
-            Right ({output}::{output :: String}) -> do
-              H.modify_ (_ { eval_message = Just output })
-              handleAction ReloadMemory
-          else Console.log "status code not 200" -- (show response)
+      mbr <- apiPOST "/api/eval_code" { mod_code: st.editorCode, eval_code: st.eval_code }
       H.modify_ (_{evaling = false})
+      for_ mbr $ \({output}::{output :: String}) -> do
+        H.modify_ (_ { eval_message = Just output })
+        handleAction ReloadMemory
 
   HandleAceUpdate (AceComponent.TextChanged code) -> do
     H.modify_ (_{ editorCode = code })

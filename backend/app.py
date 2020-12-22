@@ -15,6 +15,7 @@ from boto3.dynamodb.conditions import *
 
 from flask import Flask
 from flask import request, abort, redirect, make_response, send_from_directory
+import jwt
 
 from telegram import Update, Bot
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 
 
 app = Flask(__name__)
+app.config.from_pyfile('secrets.py')
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
 dynamodb = boto3.resource('dynamodb', region_name='eu-central-1')
@@ -137,24 +139,45 @@ def get_events(botname):
     else:
         return []
 
-def api_authenticate():
+@app.route('/api/login', methods=('POST',))
+def api_login():
     if not request.json or not 'password' in request.json:
         abort(make_response(json.dumps({'error': "Missing login data"}), 400))
 
     botname = check_pw(request.json['password'])
+
     if botname is None:
         abort(make_response(json.dumps({'error': f'Sorry, invalid password. Ask the bot with /login!'}), 403))
-    else:
-        return botname
 
-@app.route('/api/login', methods=('POST',))
-def login_test():
-    botname = api_authenticate()
-    return json.dumps({})
+    iat = datetime.datetime.utcnow()
+    # for now, lets simply not expire them
+    #exp = iat + datetime.timedelta(hours=12)
+    nbf = iat
+    payload = {'iat': iat, 'nbf': nbf, 'botname': botname}
+    secret = app.config['SECRET_KEY']
+    token = jwt.encode(payload, secret)
+    return json.dumps({'token' : token.decode('utf-8')})
+
+def check_token():
+    header = request.headers.get('Authorization', None)
+
+    if not header:
+        abort(401, "Missing JWT header")
+
+    if not header.lower().startswith("bearer "):
+        abort(401, "Wrong authentication type ")
+
+    secret = app.config['SECRET_KEY']
+    token = header[7:]
+    try:
+        payload = jwt.decode(token, secret)
+        return payload['botname']
+    except jwt.InvalidTokenError as e:
+        abort(401, f"Invalid token: {e}")
 
 @app.route('/api/get_code', methods=('POST',))
 def get_code():
-    botname = api_authenticate()
+    botname = check_token()
     return json.dumps({
         'botname': botname,
         'code': get_user_code(botname)
@@ -162,7 +185,7 @@ def get_code():
 
 @app.route('/api/get_state', methods=('POST',))
 def api_get_state():
-    botname = api_authenticate()
+    botname = check_token()
     return json.dumps({
         'state': pprint.pformat(get_state(botname), indent=2,width=50),
         'events': get_events(botname)
@@ -170,7 +193,7 @@ def api_get_state():
 
 @app.route('/api/test_code', methods=('POST',))
 def test_code():
-    botname = api_authenticate()
+    botname = check_token()
     if not 'new_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
     new_code = request.json['new_code']
@@ -190,7 +213,7 @@ def test_code():
 
 @app.route('/api/eval_code', methods=('POST',))
 def eval_code():
-    botname = api_authenticate()
+    botname = check_token()
     if not 'mod_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing module code"}), 400))
     if not 'eval_code' in request.json:
@@ -220,6 +243,14 @@ def eval_code():
         note_event(botname, e)
         return json.dumps({'output':f.getvalue() })
 
+@app.route('/api/set_code', methods=('POST',))
+def set_code():
+    botname = check_token()
+    if not 'new_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
+    set_user_code(botname, request.json['new_code'])
+    return json.dumps({})
+
 @app.route("/")
 def index():
     return redirect("/admin/")
@@ -236,13 +267,6 @@ def send_frontend_index():
 def send_frontend_file(path):
     return send_from_directory('frontend', path)
 
-@app.route('/api/set_code', methods=('POST',))
-def set_code():
-    botname = api_authenticate()
-    if not 'new_code' in request.json:
-        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
-    set_user_code(botname, request.json['new_code'])
-    return json.dumps({})
 
 def echo(botname, update, context):
     state = get_state(botname)

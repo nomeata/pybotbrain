@@ -29,7 +29,7 @@ import HTMLUtils as HU
 type Slot = H.Slot (Const Void) LoginData
 
 type LoginData =
-   { password :: String
+   { token :: String
    }
 
 type State =
@@ -103,10 +103,10 @@ handleLoginAction = case _ of
     pw <- H.liftEffect $ do
       w <- window
       s <- localStorage w
-      Storage.getItem "password" s
-    for_ pw $ \password -> H.modify_ (_ {password = password })
+      Storage.getItem "token" s
+    for_ pw $ \token -> H.raise {token}
 
-  ChangePassword s -> H.modify_ (_ { password = s})
+  ChangePassword s -> H.modify_ (_ { password = String.toUpper s})
 
   DoLogin event -> do
     H.liftEffect $ Event.preventDefault event
@@ -119,12 +119,14 @@ handleLoginAction = case _ of
       Left err -> H.modify_ (_ {lastError = Just (AX.printError err) })
       Right response -> do
         if response.status == StatusCode 200
-        then do
-          H.liftEffect $ do
-            w <- window
-            s <- localStorage w
-            Storage.setItem "password" password s
-          H.raise {password}
+        then case decodeJson response.body of
+          Left err -> H.modify_ (_ {lastError = Just (printJsonDecodeError err) })
+          Right ({token}::{token :: String}) -> do
+            H.liftEffect $ do
+              w <- window
+              s <- localStorage w
+              Storage.setItem "token" token s
+            H.raise {token}
         else case decodeJson response.body of
           Left err -> H.modify_ (_ {lastError = Just (printJsonDecodeError err) })
           Right ({error}::{error :: String}) -> H.modify_ (_ {lastError = Just error })

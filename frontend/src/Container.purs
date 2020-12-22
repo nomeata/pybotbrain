@@ -6,6 +6,9 @@ import Data.Symbol (SProxy(..))
 import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
+import Web.HTML (window)
+import Web.HTML.Window (localStorage)
+import Web.Storage.Storage as Storage
 
 import Login as Login
 import IDE as IDE
@@ -43,4 +46,10 @@ render (IDE loginData) =
 handleAction :: forall o m. MonadAff m => Action -> H.HalogenM State Action ChildSlots o m Unit
 handleAction = case _ of
   HandleLogin loginData -> H.put (IDE loginData)
-  HandleLogout IDE.Logout -> H.put Login
+  HandleLogout IDE.Logout -> do
+    -- A slight break of abstraction; this should happen in the Login component
+    pw <- H.liftEffect $ do
+      w <- window
+      s <- localStorage w
+      Storage.removeItem "token" s
+    H.put Login
