@@ -48,14 +48,14 @@ Sure! Some things on the TODO list are:
 
  * Write target-audience compatibe documentation
 
-   Some first steps are in `docs`
+   Some first steps are in `docs/`
 
- * Make this safer to run.
+ * Make this safer to run
 
    In particular, find the minimal necessary AWS policy for the Lambda
    function, and sandbox the Python execution.
 
- * Prettier UI.
+ * Prettier UI
 
    In particular, make the editor window take the full available vertical
    space. Maybe switching from Bulma to a more modern, flexbox-based CSS
