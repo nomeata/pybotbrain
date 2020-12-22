@@ -22,7 +22,7 @@ Interaction with the bot                                      | The web interfac
 :------------------------------------------------------------:|:--------------------------------------------------------:
 ![Interaction with a telegram bot](screenshot-telegram.png)   | ![The corresponding control panel](screenshot-admin.png)
 
-## What is the API
+## What is the API for the bot’s code?
 
  * To react to a private message, define a function `def private_message(sender,
    text)`. If you return a string, it will become the bot’s response.
@@ -53,7 +53,7 @@ Sure! Some things on the TODO list are:
  * Make this safer to run
 
    In particular, find the minimal necessary AWS policy for the Lambda
-   function, and sandbox the Python execution.
+   function, and sandbox the Python execution. Also size limits on code and state.
 
  * Prettier UI
 
@@ -79,6 +79,12 @@ Sure! Some things on the TODO list are:
    project](https://github.com/robot-rumble/logic/)), maybe rewriting the
    backend in a nicer language
    ([Haskell?](https://github.com/robot-rumble/logic/)) is appropriate.
+
+ * Easier sign up
+
+   Probably only relevant once this is safe enough to run publicly, but then it
+   would be nice if users could just forward the `@botfather`’s message with
+   the bot key to, say, `@pybotbrainbot`, and that’s enough to sign the bot up.
 
  * Carefully adding capabilities to the bot
 
