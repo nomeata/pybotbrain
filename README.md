@@ -22,6 +22,15 @@ Interaction with the bot                                      | The web interfac
 :------------------------------------------------------------:|:--------------------------------------------------------:
 ![Interaction with a telegram bot](screenshot-telegram.png)   | ![The corresponding control panel](screenshot-admin.png)
 
+## What is the API
+
+ * To react to a private message, define a function `def private_message(sender,
+   text)`. If you return a string, it will become the bot’s response.
+
+ * To react to a group message, define a function `def group_message(sender,
+   text)`. If you return a string, it will become the bot’s response.
+
+ * You can remember things in the `memory` dictionary.
 
 ## Can I use it?
 
@@ -70,3 +79,15 @@ Sure! Some things on the TODO list are:
    project](https://github.com/robot-rumble/logic/)), maybe rewriting the
    backend in a nicer language
    ([Haskell?](https://github.com/robot-rumble/logic/)) is appropriate.
+
+ * Carefully adding capabilities to the bot
+
+   This will never expose the full complexity of the [Telegram Bot
+   API](https://core.telegram.org/bots/api). The goal is to teach programming
+   and allow the kids to do many fun and interesting and useful things – not
+   necessarily _all_ the things.
+
+   That said, a careful extension of the capabilities, especially if they don’t
+   make the first steps more complicated, are useful. Especailly important
+   features like “sending stickers”.
+
