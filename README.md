@@ -21,7 +21,9 @@ write, for example, elaborate interactive fiction.
 ## The service
 
 To that end, I created `pybotbrain`. This is a service running on the internet
-that can host any number Telegram bots (i.e. it receives messages to these bots, and responds to them). It allows the “owners” of these bot to program the inner logic of the bot very effortless with the browser, as the following screenshots show:
+that can host any number Telegram bots (i.e. it receives messages to these bots, and responds to them). It allows the “owners” of these bot to program the inner logic of the bot very effortless with the browser, as the following screenshots show.
+
+The bots are programmed in Python, using a very simple programming interface, so that even with rudimentary programming skills, interesting bots can be written.
 
 Interaction with a bot                                        | The web interface
 :------------------------------------------------------------:|:--------------------------------------------------------:
