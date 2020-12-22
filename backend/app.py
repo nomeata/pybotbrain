@@ -55,6 +55,10 @@ def create_table():
         ProvisionedThroughput={
             'ReadCapacityUnits': 10,
             'WriteCapacityUnits': 10
+        },
+        TimeToLiveDescription = {
+            'AttributeName': 'ttl',
+            'TimeToLiveStatus': 'ENABLED'
         }
     )
 
@@ -108,9 +112,13 @@ def check_pw(pw):
         return None
 
 def add_pw(botname, pw):
-    table.put_item(
-        Item={'bot':"#pwds", 'id': pw, 'botname': botname }
-    )
+    exp = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    table.put_item(Item={
+        'bot':"#pwds",
+        'id': pw,
+        'botname': botname,
+        'ttl': int(exp.timestamp())
+    })
 
 def note_event(botname, e):
     #logger.warn("Exception encountered: %s", e)
