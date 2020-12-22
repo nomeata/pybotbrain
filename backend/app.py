@@ -69,6 +69,7 @@ def define_bot(botname, token, admins):
         'token': token,
         'admins': admins
     })
+    set_webhook(botname)
 
 def get_bot_settings(botname):
     result = table.get_item(Key={'bot': botname, 'id': 'settings'})

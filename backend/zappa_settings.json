@@ -2,7 +2,7 @@
   "dev": {
     "app_function": "app.app",
     "aws_region": "eu-central-1",
-    "profile_name": "python-bot",
+    "profile_name": "pybotbrain",
     "project_name": "python-bot",
     "runtime": "python3.7",
     "s3_bucket": "python-bot-zappa",
