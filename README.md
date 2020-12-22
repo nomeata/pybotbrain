@@ -18,6 +18,11 @@ obvious syntax error are caught before they try to press “Deploy”. And alrea
 with very very simple programming skills (`if`, string comparison) the kids can
 write, for example, elaborate interactive fiction.
 
+## The service
+
+To that end, I created `pybotbrain`. This is a service running on the internet
+that can host any number Telegram bots (i.e. it receives messages to these bots, and responds to them). It allows the “owners” of these bot to program the inner logic of the bot very effortless with the browser, as the following screenshot shows:
+
 Interaction with the bot                                      | The web interface
 :------------------------------------------------------------:|:--------------------------------------------------------:
 ![Interaction with a telegram bot](screenshot-telegram.png)   | ![The corresponding control panel](screenshot-admin.png)
