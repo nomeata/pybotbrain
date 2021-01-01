@@ -211,17 +211,18 @@ render st =
               if null st.events
               then [ HH.text "None yet!" ]
               else intercalate [HH.hr [ HU.classes ["events"] ]] $
+                let as_name s = HH.span [ HU.classes ["has-text-success"]] [HH.text s] in
                 map (case _ of
                   OtherEvent -> []
                   LoginEvent e ->
-                    [ HH.p_ [ HH.text $ "🔑 " <> e.from ]]
+                    [ HH.p_ [ HH.text "🔑 ", as_name e.from ] ]
                   EvalEvent e ->
                     [ HH.p_ [ HH.text "🔬 Eval" ]] <>
                     foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
                   MessageEvent e ->
-                    [ HH.p_ [ HH.text $ "⬅️ " <> e.from <> ": " <> e.text ]] <>
+                    [ HH.p_ [ HH.text "⬅️ ", as_name e.from, HH.text ": ", HH.text e.text ]] <>
                     foldMap (\s ->
-                      [ HH.p_ [ HH.text $ "➡️ " <> st.botname <> ": " <> s ]]
+                      [ HH.p_ [ HH.text "➡️ ", as_name st.botname, HH.text ": ", HH.text s]]
                     ) e.response <>
                     foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
                 ) st.events <>
