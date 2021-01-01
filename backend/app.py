@@ -127,26 +127,25 @@ def note_event(botname, e):
     # this should ideally be different dynamodb items,
     # with a TTL and fetched with a query
     # or at least shorten the event list…
-    e['when'] = int(time.time())
-    table.update_item(
-        Key = { 'bot':botname,  'id': 'events' },
-        UpdateExpression = "SET events = list_append(:vals, if_not_exists(events, :empty))",
-        ExpressionAttributeValues = {
-            ":vals" : [ e ],
-            ":empty": []
-        }
-    )
+    timestamp = int(time.time())
+
+    e['bot'] = botname
+    e['id'] = f"event#{timestamp:010}"
+    e['when'] = timestamp
+    table.put_item(Item = e)
 
 def get_events(botname):
-    result = table.get_item(Key={'bot': botname, 'id':'events'})
-    if "Item" in result:
-        events = result['Item']['events']
-        for e in events:
-            # remove Decimal wrapper, doesn’t work with json.dumps
-            e['when'] = int(e['when'])
-        return events
-    else:
-        return []
+    result = table.query(
+       KeyConditionExpression=
+        Key('bot').eq(botname) &
+        Key('id').begins_with("event#"),
+        ScanIndexForward = False
+    )
+    events = result['Items']
+    for e in events:
+        # remove Decimal wrapper, doesn’t work with json.dumps
+        e['when'] = int(e['when'])
+    return events
 
 @app.route('/api/login', methods=('POST',))
 def api_login():
@@ -310,7 +309,7 @@ def login(botname, update, context):
     id = update.message.from_user.id
     settings = get_bot_settings(botname)
     if id in settings['admins']:
-        note_event(botname, {'trigger' : "login"})
+        note_event(botname, {'trigger' : "login", 'from': update.message.from_user.first_name})
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
         update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/")

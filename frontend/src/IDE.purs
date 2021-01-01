@@ -82,7 +82,7 @@ _ace = SProxy :: SProxy "ace"
 data LogEvent
   = EvalEvent { exception :: Maybe String }
   | MessageEvent { trigger :: String, from :: String, text :: String, response :: Maybe String, exception :: Maybe String }
-  | LoginEvent
+  | LoginEvent { from :: String }
   | OtherEvent
 
 instance encodeLogEvent :: DecodeJson LogEvent where
@@ -105,7 +105,9 @@ instance encodeLogEvent :: DecodeJson LogEvent where
             response <- getFieldOptional obj "response"
             exception <- getFieldOptional obj "exception"
             pure $ MessageEvent { trigger, from, text, response, exception }
-         "login" -> pure LoginEvent
+         "login" -> do
+            from <- getField obj "from"
+            pure $ LoginEvent { from }
          _ -> pure OtherEvent
 
 -- | The main UI component definition.
@@ -209,8 +211,8 @@ render st =
               else intercalate [HH.hr [ HU.classes ["events"] ]] $
                 map (case _ of
                   OtherEvent -> []
-                  LoginEvent ->
-                    [ HH.p_ [ HH.text "🔑 Login" ]]
+                  LoginEvent e ->
+                    [ HH.p_ [ HH.text $ "🔑 " <> e.from ]]
                   EvalEvent e ->
                     [ HH.p_ [ HH.text "🔬 Eval" ]] <>
                     foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
