@@ -74,9 +74,9 @@ Sure! Some things on the TODO list are:
 
  * Sensible polling for events and memory changes
 
-   Events should probably be their own DynamoDB entries, with a time-to-live.
-   The Frontend should use not always donwload the full list of event, but only
+   The Frontend should use not always donwload the full list of events, but only
    those that are new since the last one.
+   Events should probably have a DynamoDB-based time-to-live.
 
  * Rewrite the backend in a different language
 

@@ -121,17 +121,12 @@ def add_pw(botname, pw):
         'ttl': int(exp.timestamp())
     })
 
-def note_event(botname, e):
-    #logger.warn("Exception encountered: %s", e)
-
-    # this should ideally be different dynamodb items,
-    # with a TTL and fetched with a query
-    # or at least shorten the event list…
+def note_event(botname, e, id_hint = 0):
     timestamp = int(time.time())
 
     e['bot'] = botname
-    e['id'] = f"event#{timestamp:010}"
-    e['when'] = timestamp
+    e['id'] = f"event#{timestamp:010}#{id_hint:010}"
+    e['when'] = int(timestamp)
     table.put_item(Item = e)
 
 def get_events(botname):
@@ -306,13 +301,13 @@ def echo(botname, update, context):
             e['response'] = response
             context.bot.send_message(chat_id = update.message.chat.id, text = response)
         set_state(botname, state)
-    note_event(botname, e)
+    note_event(botname, e, update.update_id)
 
 def login(botname, update, context):
     id = update.message.from_user.id
     settings = get_bot_settings(botname)
     if id in settings['admins']:
-        note_event(botname, {'trigger' : "login", 'from': update.message.from_user.first_name})
+        note_event(botname, {'trigger' : "login", 'from': update.message.from_user.first_name}, update.update_id)
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
         update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/")
