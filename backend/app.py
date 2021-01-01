@@ -146,7 +146,7 @@ def get_events(botname):
     for e in events:
         # remove Decimal wrapper, doesn’t work with json.dumps
         e['when'] = int(e['when'])
-    return events
+    return events, 'LastEvaluatedKey' in result
 
 @app.route('/api/login', methods=('POST',))
 def api_login():
@@ -195,9 +195,11 @@ def get_code():
 @app.route('/api/get_state', methods=('POST',))
 def api_get_state():
     botname = check_token()
+    events, has_more = get_events(botname)
     return json.dumps({
         'state': pprint.pformat(get_state(botname), indent=2,width=50),
-        'events': get_events(botname)
+        'events': events,
+        'has_more' : has_more
     })
 
 @app.route('/api/test_code', methods=('POST',))

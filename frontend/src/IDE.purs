@@ -58,6 +58,7 @@ type State
    , errorMessage :: ErrorMessage
    , memory :: String
    , events :: Array LogEvent
+   , has_more_events :: Boolean
    , evaling :: Boolean
    , eval_code :: String
    , eval_message :: Maybe String
@@ -125,6 +126,7 @@ component =
       , errorMessage: AllGood
       , memory: ""
       , events: []
+      , has_more_events: true
       , evaling: false
       , eval_code: ""
       , eval_message: Nothing
@@ -222,7 +224,8 @@ render st =
                       [ HH.p_ [ HH.text $ "➡️ " <> st.botname <> ": " <> s ]]
                     ) e.response <>
                     foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
-                ) st.events
+                ) st.events <>
+                (if st.has_more_events then [ [ HH.p_ [ HH.text "…" ]]] else [])
             ]
           ]
         , HU.divClass ["block"]
@@ -347,8 +350,8 @@ handleAction = case _ of
   ReloadMemory -> do
     st <- H.get
     mbr <- apiPOST "/api/get_state" {}
-    for_ mbr $ \(r::{state :: String, events :: Array LogEvent}) -> do
-      H.modify_ (_ { memory = r.state, events = r.events })
+    for_ mbr $ \(r::{state :: String, events :: Array LogEvent, has_more :: Boolean}) -> do
+      H.modify_ (_ { memory = r.state, events = r.events, has_more_events = r.has_more })
 
   DoLogout -> do
     H.raise Logout
