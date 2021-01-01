@@ -46,7 +46,7 @@ and when I fix that, I can maybe allow my instance of `pybotbrain` to be used
 by anyone.
 
 Until then, if you dare, you are welcome to run it on your own. You do not need
-a server for it, just an Amazon Webservices account, and it will very likely
+a server for it, just an Amazon WebServices account, and it will very likely
 run well within the free tier. See `./Building.md` for instructions.
 
 ## Can I contribute?
