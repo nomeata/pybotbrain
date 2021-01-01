@@ -139,7 +139,8 @@ def get_events(botname):
        KeyConditionExpression=
         Key('bot').eq(botname) &
         Key('id').begins_with("event#"),
-        ScanIndexForward = False
+        ScanIndexForward = False,
+        Limit = 10
     )
     events = result['Items']
     for e in events:
