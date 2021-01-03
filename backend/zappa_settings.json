@@ -11,8 +11,8 @@
     "route53_enabled": false,
     "keep_warm": "false",
     "log_level": "INFO",
-    "exclude": ["boto3*"],
-    "memory_size": 1024,
-    "timeout_seconds": 60
+    "exclude": ["boto3*", "vendor"],
+    "memory_size": 512,
+    "timeout_seconds": 35
   }
 }

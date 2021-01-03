@@ -43,10 +43,15 @@ Change `domain` to “your” Domain in `zappa_settings.json`, conigure a AWS
 certificate for that domain, and set the `certificate_arn` setting accordingly.
 Also change the domain in `app.py`.
 
-To deploy the lambda function initally, run
+To deploy the backend lambda function initally, run
 ```
 zappa deploy
 ```
+
+There is a second Lambda function, used to sandbox the function code
+evaluation. This is not automated, so manually create a function called
+`python-bot-eval` with the Python runtime and entry point
+`sandbox.lambda_handler`
 
 ## Push new code
 
@@ -57,6 +62,10 @@ npm run build-prod
 and in `backend/`, run
 ```
 zappa update
+```
+as well ass
+```
+./deploy-eval.sh
 ```
 
 ## Adding bots
@@ -106,19 +115,3 @@ When done, set the webhook again.
 ```
 python3 -c 'import app;app.set_webhook("NameOfYourBot")'
 ```
-
-## Vendored files
-
-See `Sandboxing.md` for why these files are needed.
-
-The file `backend/vendor/rustpython.wasm` is produced by running
-
-    git clone https://github.com/RustPython/RustPython.git
-    cd RustPython
-    cargo build --release --target wasm32-wasi --features="freeze-stdlib"
-
-or could be downloaded from https://wapm.io/package/rustpython#explore, once a
-more up-to-date release is there.
-
-The file `backend/vendor/wasmtime` is downloaded and extracted from
-https://github.com/bytecodealliance/wasmtime/releases

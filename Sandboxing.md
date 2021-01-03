@@ -51,7 +51,7 @@ At a high level, the mitigations involve:
    `backend/sandbox/sandbox.py`, which communicated via stdin/stdout, so both
    Python-specific and process-generic mechanims can be used.
 
-   Currently using the Wasm-based approach.
+   Currently using the separate Amazon Lambda function approach.
 
 Sandboxing with seccomp
 -----------------------
@@ -76,9 +76,10 @@ program, only the `sandbox/` directory needs to be whitelisted using wasmtime’
 capability-based security mechanism.
 
 This also disables network access, at least [for
-now](https://github.com/WebAssembly/WASI/pull/312). This is good and bad.
+now](https://github.com/WebAssembly/WASI/pull/312). This is both good and bad.
 
-`wasmtime` also supports a timeout mechanism.
+`wasmtime` also supports a timeout mechanism (although unclear if it really
+excludes the time to compile the module).
 
 This works, seems to be secure, but it is not fully satisfying because of the
 rather high latency, expecially for the first invokation of an Amazon Lambda
@@ -88,13 +89,15 @@ This was inspired by https://github.com/robot-rumble/logic/ (but is arguably
 simpler, by using `rustpython.wasm` and `wasmtime` unmodified, instead of
 building custom programs that use these as libraries).
 
+I used this briefly; see the git history for code and details.
+
 Sandboxing via a separate Amazon Lambda function
 ------------------------------------------------
 
-Maybe one could rely on Amazon Lambda itself for sandboxing.  Using a separate
-Amazon Lambda function purely for evaluating code would isolate that from the
-storage system, and could have a very restricted execution role, addressing
-most attacks above.
+A third option is to rely on Amazon Lambda itself for sandboxing.  Using a
+separate Amazon Lambda function purely for evaluating code can isolate that
+from the storage system, and could have a very restricted execution role,
+addressing most attacks above.
 
 Because of execution environment re-use, there is still the risk of malicious
 code surviving until the next invocation, and messing with that response.
@@ -106,6 +109,4 @@ If that is still an issue, a separate Amazon Lambda function per user (i.e. per
 bot) could be created automatically; it seems the cost model of AWS makes that
 possible. (Thanks to https://twitter.com/felixhuttmann for that suggestion).
 
-Would add latency, but probably still much less than RustPython/Wasm.
-
-Not investigated further yet.
+Also adds latency, much much less than RustPython/Wasm.

@@ -35,71 +35,80 @@ import traceback
 import io, sys
 import json
 
-data = json.load(sys.stdin)
-if 'eval' in data:
-    mod_code = data['code']
-    eval_code = data['eval']
-    state = json.loads(data['state'])
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            with redirect_stderr(f):
-                from types import ModuleType
-                mod = ModuleType('botcode')
-                mod.memory = state
-                exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
-                ret = exec(compile(eval_code,"eval-code.py",'single'), mod.__dict__)
-    except:
-        exception = traceback.format_exc(limit=-1)
-        print(json.dumps({'exception': exception}))
-    else:
-        print(json.dumps({'output': f.getvalue(), 'new_state' : json.dumps(mod.memory) }))
-elif 'message' in data:
-    mod_code = data['code']
-    sender = data['sender']
-    text = data['text']
-    state = json.loads(data['state'])
-    response = None
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            with redirect_stderr(f):
-                from types import ModuleType
-                mod = ModuleType('botcode')
-                mod.memory = state
-                exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
-                if data['message'] == 'private':
-                    if 'private_message' in mod.__dict__:
-                        response = mod.private_message(sender, text)
+def sandbox(data):
+  if 'eval' in data:
+      mod_code = data['code']
+      eval_code = data['eval']
+      state = json.loads(data['state'])
+      f = io.StringIO()
+      try:
+          with redirect_stdout(f):
+              with redirect_stderr(f):
+                  from types import ModuleType
+                  mod = ModuleType('botcode')
+                  mod.memory = state
+                  exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
+                  ret = exec(compile(eval_code,"eval-code.py",'single'), mod.__dict__)
+      except:
+          exception = traceback.format_exc(limit=-1)
+          return {'exception': exception}
+      else:
+          return {'output': f.getvalue(), 'new_state' : json.dumps(mod.memory) }
+  elif 'message' in data:
+      mod_code = data['code']
+      sender = data['sender']
+      text = data['text']
+      state = json.loads(data['state'])
+      response = None
+      f = io.StringIO()
+      try:
+          with redirect_stdout(f):
+              with redirect_stderr(f):
+                  from types import ModuleType
+                  mod = ModuleType('botcode')
+                  mod.memory = state
+                  exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
+                  if data['message'] == 'private':
+                      if 'private_message' in mod.__dict__:
+                          response = mod.private_message(sender, text)
 
-                elif data['message'] == 'group':
-                    if 'group_message' in mod.__dict__:
-                        response = mod.group_message(sender, text)
-    except:
-        exception = traceback.format_exc(limit=-1)
-        print(json.dumps({'exception': exception}))
-    else:
-        print(json.dumps({'response': response, 'new_state' : json.dumps(mod.memory)}))
-elif 'test' in data:
-    mod_code = data['code']
-    state = json.loads(data['state'])
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            with redirect_stderr(f):
-                from types import ModuleType
-                mod = ModuleType('botcode')
-                mod.memory = state
-                exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
-                if 'test' in mod.__dict__:
-                    mod.test()
-    except SyntaxError as e:
-        exception = str(e)
-        print(json.dumps({'error': exception}))
-    except:
-        exception = traceback.format_exc(limit=-1)
-        print(json.dumps({'error': exception}))
-    else:
-        print(json.dumps({'error': None}))
-else:
-    print(json.dumps({'error': "Could not find out what to do"}))
+                  elif data['message'] == 'group':
+                      if 'group_message' in mod.__dict__:
+                          response = mod.group_message(sender, text)
+      except:
+          exception = traceback.format_exc(limit=-1)
+          return {'exception': exception}
+      else:
+          return {'response': response, 'new_state' : json.dumps(mod.memory)}
+  elif 'test' in data:
+      mod_code = data['code']
+      state = json.loads(data['state'])
+      f = io.StringIO()
+      try:
+          with redirect_stdout(f):
+              with redirect_stderr(f):
+                  from types import ModuleType
+                  mod = ModuleType('botcode')
+                  mod.memory = state
+                  exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
+                  if 'test' in mod.__dict__:
+                      mod.test()
+      except SyntaxError as e:
+          exception = str(e)
+          return {'error': exception}
+      except:
+          exception = traceback.format_exc(limit=-1)
+          return {'error': exception}
+      else:
+          return {'error': None}
+  else:
+      return {'error': "Could not find out what to do"}
+
+def lambda_handler(event, context):
+    return sandbox(event)
+
+if __name__ == '__main__':
+    data = json.load(sys.stdin)
+    ret = sandbox(data)
+    print(json.dumps(ret))
+

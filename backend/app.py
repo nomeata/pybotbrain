@@ -205,15 +205,11 @@ def api_get_state():
         'has_more' : has_more
     })
 
-# This function wraps the sandbox.py program.
-# It communicates via stdin/stdout and json
-def sandbox(inp):
-    env = {}
-    for v in []: # environment variables to preserve
-        if v in os.environ:
-            env[v] = os.environ[v]
+# This wraps the sandbox.py program, communicating via stdin/stdout
+# and json. Useful for local testing.
+def no_sandbox(inp):
     result = subprocess.run(
-      ["./vendor/wasmtime", "run", "--config", "wasmtime.toml", "--dir", "sandbox", "./vendor/rustpython.wasm", "--", "sandbox/sandbox.py"],
+      ["python3", "sandbox/sandbox.py"],
       # ["python3", "sandbox.py"],
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
@@ -230,6 +226,20 @@ def sandbox(inp):
         print(result.stdout.decode('utf-8'))
         print(result.stderr.decode('utf-8'))
         return { 'error': 'Program failed' }
+
+# This calls the sandbox.py program via Amazon Lambda.
+def lambda_sandbox(inp):
+    client = boto3.client('lambda', region_name='eu-central-1')
+    response = client.invoke(
+        FunctionName='python-bot-eval',
+        Payload= json.dumps(inp).encode('utf8')
+    )
+    if 'FunctionError' in response:
+        return { 'error': response['FunctionError'] }
+    else:
+        return json.loads(response['Payload'].read())
+
+sandbox=lambda_sandbox
 
 @app.route('/api/eval_code', methods=('POST',))
 def eval_code():
