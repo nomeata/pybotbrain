@@ -7,7 +7,6 @@ the code) to make that easier.
 
 ## Initial setup
 
-
 To prepare development, install the dependencies
 
 ```
@@ -107,3 +106,19 @@ When done, set the webhook again.
 ```
 python3 -c 'import app;app.set_webhook("NameOfYourBot")'
 ```
+
+## Vendored files
+
+See `Sandboxing.md` for why these files are needed.
+
+The file `backend/vendor/rustpython.wasm` is produced by running
+
+    git clone https://github.com/RustPython/RustPython.git
+    cd RustPython
+    cargo build --release --target wasm32-wasi --features="freeze-stdlib"
+
+or could be downloaded from https://wapm.io/package/rustpython#explore, once a
+more up-to-date release is there.
+
+The file `backend/vendor/wasmtime` is downloaded and extracted from
+https://github.com/bytecodealliance/wasmtime/releases

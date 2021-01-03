@@ -162,7 +162,7 @@ render st =
                 [ HH.text "🚦 Status" ]
               ]
             , HU.divClass ["card-content"]
-              [ HH.p_ $
+              [ pPreWrap $
                 case st.errorMessage of
                   AllGood -> [ HH.text "😊 All good!" ]
                   Checking -> [ HH.text "🤔 Checking!" ]
@@ -215,16 +215,16 @@ render st =
                 map (case _ of
                   OtherEvent -> []
                   LoginEvent e ->
-                    [ HH.p_ [ HH.text "🔑 ", as_name e.from ] ]
+                    [ pPreWrap [ HH.text "🔑 ", as_name e.from ] ]
                   EvalEvent e ->
-                    [ HH.p_ [ HH.text "🔬 Eval" ]] <>
-                    foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
+                    [ pPreWrap [ HH.text "🔬 Eval" ]] <>
+                    foldMap (\s -> [ pPreWrap [ HH.text $ "😬 " <> s ]]) e.exception
                   MessageEvent e ->
-                    [ HH.p_ [ HH.text "⬅️ ", as_name e.from, HH.text ": ", HH.text e.text ]] <>
+                    [ pPreWrap [ HH.text "⬅️ ", as_name e.from, HH.text ": ", HH.text e.text ]] <>
                     foldMap (\s ->
-                      [ HH.p_ [ HH.text "➡️ ", as_name st.botname, HH.text ": ", HH.text s]]
+                      [ pPreWrap [ HH.text "➡️ ", as_name st.botname, HH.text ": ", HH.text s]]
                     ) e.response <>
-                    foldMap (\s -> [ HH.p_ [ HH.text $ "😬 " <> s ]]) e.exception
+                    foldMap (\s -> [ pPreWrap [ HH.text $ "😬 " <> s ]]) e.exception
                 ) st.events <>
                 (if st.has_more_events then [ [ HH.p_ [ HH.text "…" ]]] else [])
             ]
@@ -273,6 +273,7 @@ render st =
       ]
     ]
   ]
+  where pPreWrap = HH.p [HU.classes ["pre-wrap"]]
 
 apiPOST :: forall m a b. MonadAff m => EncodeJson a => DecodeJson b =>
   String -> a ->

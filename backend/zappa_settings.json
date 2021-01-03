@@ -10,6 +10,9 @@
     "certificate_arn": "arn:aws:acm:us-east-1:569211034371:certificate/d9ce2f13-18b5-4521-80ff-0ecf2e883a89",
     "route53_enabled": false,
     "keep_warm": "false",
-    "log_level": "INFO"
+    "log_level": "INFO",
+    "exclude": ["boto3*"],
+    "memory_size": 1024,
+    "timeout_seconds": 60
   }
 }

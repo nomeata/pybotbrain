@@ -8,6 +8,8 @@ import json
 import datetime
 import pprint
 import io
+import os
+import subprocess
 from contextlib import redirect_stdout, redirect_stderr
 
 import boto3
@@ -93,17 +95,23 @@ def set_user_code(botname, new_code):
         Item={'bot':botname, 'id': 'code', 'code': new_code }
     )
 
-def get_state(botname):
+def get_raw_state(botname):
     result = table.get_item(Key={'bot': botname, 'id': 'state'})
     if 'Item' in result:
-        return json.loads(result['Item']['state'])
+        return result['Item']['state']
     else:
-        return {}
+        return '{}'
+
+def get_state(botname):
+    return json.loads(get_raw_state(botname))
+
+def set_raw_state(botname, new_state):
+    table.put_item(
+        Item={'bot':botname, 'id': 'state', 'state': new_state }
+    )
 
 def set_state(botname, new_state):
-    table.put_item(
-        Item={'bot':botname, 'id': 'state', 'state': json.dumps(new_state) }
-    )
+    set_raw_state(botname, json.dumps(new_state))
 
 def check_pw(pw):
     result = table.get_item(Key={'bot': '#pwds', 'id': pw})
@@ -197,25 +205,31 @@ def api_get_state():
         'has_more' : has_more
     })
 
-@app.route('/api/test_code', methods=('POST',))
-def test_code():
-    botname = check_token()
-    if not 'new_code' in request.json:
-        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
-    new_code = request.json['new_code']
-    state = get_state(botname)
-
-    try:
-        from types import ModuleType
-        mod = ModuleType('botcode')
-        mod.memory = state
-        exec(compile(new_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
-        if 'test' in mod.__dict__:
-            mod.test()
-    except:
-        return json.dumps({'error': str(sys.exc_info()[1])})
+# This function wraps the sandbox.py program.
+# It communicates via stdin/stdout and json
+def sandbox(inp):
+    env = {}
+    for v in []: # environment variables to preserve
+        if v in os.environ:
+            env[v] = os.environ[v]
+    result = subprocess.run(
+      ["./vendor/wasmtime", "run", "--config", "wasmtime.toml", "--dir", "sandbox", "./vendor/rustpython.wasm", "--wasm-timeout", "10s", "--", "sandbox/sandbox.py"],
+      # ["python3", "sandbox.py"],
+      stdout=subprocess.PIPE,
+      stderr=subprocess.PIPE,
+      env=env,
+      input=json.dumps(inp).encode('utf8')
+    )
+    if result.returncode == 0:
+        return json.loads(result.stdout)
+    elif result.returncode == 134:
+        print(result.stdout.decode('utf-8'))
+        print(result.stderr.decode('utf-8'))
+        return { 'error': 'Program aborted (timeout?)' }
     else:
-        return json.dumps({'error': None})
+        print(result.stdout.decode('utf-8'))
+        print(result.stderr.decode('utf-8'))
+        return { 'error': 'Program failed' }
 
 @app.route('/api/eval_code', methods=('POST',))
 def eval_code():
@@ -224,30 +238,49 @@ def eval_code():
         abort(make_response(json.dumps({'error': "Missing module code"}), 400))
     if not 'eval_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing eval code"}), 400))
-    mod_code = request.json['mod_code']
-    eval_code = request.json['eval_code']
-    state = get_state(botname)
+    out = sandbox({
+        'code' : request.json['mod_code'],
+        'eval' : request.json['eval_code'],
+        'state': get_raw_state(botname),
+    })
+
     e = {}
     e['trigger'] = 'eval'
 
-    f = io.StringIO()
-    try:
-        with redirect_stdout(f):
-            with redirect_stderr(f):
-                from types import ModuleType
-                mod = ModuleType('botcode')
-                mod.memory = state
-                exec(compile(mod_code,filename = "bot-code.py", mode = 'exec'), mod.__dict__)
-                ret = exec(compile(eval_code,filename = "eval-code.py", mode = 'single'), mod.__dict__)
-    except:
-        exception = str(sys.exc_info()[1])
-        e['exception'] = exception
-        note_event(botname, e)
-        return json.dumps({'output': exception})
+    if 'new_state' in out:
+        set_raw_state(botname, out['new_state'])
+
+    if 'output' in out:
+        ret = {'output': out['output']}
+    elif 'exception' in out:
+        e['exception'] = out['exception']
+        ret = {'output': out['exception']}
+    elif 'error' in out:
+        # this is more an internal error
+        e['exception'] = out['error']
+        ret = {'output': out['error']}
     else:
-        set_state(botname, state)
-        note_event(botname, e)
-        return json.dumps({'output':f.getvalue() })
+        # this is more an internal error
+        e['exception'] = "Unexpected result from sandbox()"
+        ret = {'output': "Internal error: Unexpected result from sandbox()"}
+
+    note_event(botname, e)
+    return json.dumps(ret)
+
+@app.route('/api/test_code', methods=('POST',))
+def test_code():
+    botname = check_token()
+    if not 'new_code' in request.json:
+        abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
+    new_code = request.json['new_code']
+    state = get_state(botname)
+
+    out = sandbox({
+        'code' : request.json['new_code'],
+        'test' : True,
+        'state': get_raw_state(botname),
+    })
+    return json.dumps({'error': out['error']})
 
 @app.route('/api/set_code', methods=('POST',))
 def set_code():
@@ -275,32 +308,34 @@ def send_frontend_file(path):
 
 
 def echo(botname, update, context):
-    state = get_state(botname)
-    mod_code = get_user_code(botname)
-    response = None
+    out = sandbox({
+        'code' : get_user_code(botname),
+        'message' : update.message.chat.type,
+        'sender' : update.message.from_user.first_name,
+        'text' : update.message.text,
+        'state': get_raw_state(botname),
+    })
+
+    if 'new_state' in out:
+        set_raw_state(botname, out['new_state'])
+
     e = {}
     e['trigger'] = update.message.chat.type
     e['from'] = update.message.from_user.first_name
     e['text'] = update.message.text
-    try:
-        from types import ModuleType
-        mod = ModuleType('botcode')
-        mod.memory = state
-        exec(mod_code, mod.__dict__)
-        if update.message.chat.type == 'private':
-            if 'private_message' in mod.__dict__:
-                response = mod.private_message(update.message.from_user.first_name, update.message.text)
 
-        elif update.message.chat.type == 'group':
-            if 'group_message' in mod.__dict__:
-                response = mod.group_message(update.message.from_user.first_name, update.message.text)
-    except:
-        e['exception'] = str(sys.exc_info()[1])
-    else:
+    if 'response' in out:
+        response = out['response']
         if response is not None:
             e['response'] = response
             context.bot.send_message(chat_id = update.message.chat.id, text = response)
-        set_state(botname, state)
+    elif 'exception' in out:
+        e['exception'] = out['exception']
+    elif 'error' in out:
+        e['exception'] = out['error']
+    else:
+        e['exception'] = "Internal error: Unexpected data from sandbox()"
+
     note_event(botname, e, update.update_id)
 
 def login(botname, update, context):
