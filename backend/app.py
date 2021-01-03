@@ -213,7 +213,7 @@ def sandbox(inp):
         if v in os.environ:
             env[v] = os.environ[v]
     result = subprocess.run(
-      ["./vendor/wasmtime", "run", "--config", "wasmtime.toml", "--dir", "sandbox", "./vendor/rustpython.wasm", "--wasm-timeout", "10s", "--", "sandbox/sandbox.py"],
+      ["./vendor/wasmtime", "run", "--config", "wasmtime.toml", "--dir", "sandbox", "./vendor/rustpython.wasm", "--", "sandbox/sandbox.py"],
       # ["python3", "sandbox.py"],
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
