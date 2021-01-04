@@ -41,13 +41,22 @@ Interaction with a bot                                        | The web interfac
 
 ## Can I use it?
 
-At the moment, the Python code evaluation is not sufficiently sand-boxed. If
-and when I fix that, I can maybe allow my instance of `pybotbrain` to be used
-by anyone.
+Yes you can!
 
-Until then, if you dare, you are welcome to run it on your own. You do not need
-a server for it, just an Amazon WebServices account, and it will very likely
-run well within the free tier. See `./Building.md` for instructions.
+  1. Open a Chat with [@PybotbrainBot](https://t.me/bybotbrainbot)
+  2. Send `/newbot` to [@BotFather](https://t.me/botfather)
+  3. Answer the questions to pick a name etc.
+  4. @BotFather will tell you the Bot’s token, which looks like `110201543:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw`. Send that to @PybotbrainBot (you can just forward the whole message)
+  5. Now talk to _your_ bot, and say `/login`
+  6. Go to https://bot.nomeata.de/admin/ to login and get started!
+
+Of course, you already have a Telegram bot, and want to control it with this, just send the token to `@PybotbrainBot`
+
+## Can I host it myself?
+
+Sure! You do not even need a server for it, just an Amazon WebServices
+account, and it will very likely run well within the free tier. See
+`./Building.md` for (very rough) instructions.
 
 ## Can I contribute?
 
@@ -59,8 +68,8 @@ Sure! Some things on the TODO list are:
 
  * Make this safer to run
 
-   * Find the minimal necessary AWS policy for the Lambda function.
-   * Find a good sandbox for the Python execution (see discussion in `./Sandboxing.md`)
+   * Find the minimal AWS policy for the backend Lambda function.
+   * Improve the sandbox for the Python execution (see discussion in `./Sandboxing.md`)
 
  * Prettier UI
 
@@ -85,12 +94,6 @@ Sure! Some things on the TODO list are:
 
  * Rewrite the backend in a different language, now that the Python sandboxing
    is its own process, and thus the backend is completely independent of Python.
-
- * Easier sign up
-
-   Probably only relevant once this is safe enough to run publicly, but then it
-   would be nice if users could just forward the `@botfather`’s message with
-   the bot key to, say, `@pybotbrainbot`, and that’s enough to sign the bot up.
 
  * Carefully adding capabilities to the bot
 

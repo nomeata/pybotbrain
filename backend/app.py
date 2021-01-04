@@ -20,6 +20,7 @@ import jwt
 
 from telegram import Update, Bot
 from telegram.ext import CommandHandler, MessageHandler, Filters, Dispatcher, Updater
+from telegram.error import Unauthorized
 
 import logging
 logging.basicConfig(
@@ -68,7 +69,7 @@ def create_table():
 
 def define_bot(botname, token, admins):
     table.put_item( Item={
-        'bot':botname,
+        'bot': botname,
         'id': 'settings',
         'token': token,
         'admins': admins
@@ -79,8 +80,6 @@ def get_bot_settings(botname):
     result = table.get_item(Key={'bot': botname, 'id': 'settings'})
     if 'Item' in result:
         return result['Item']
-    else:
-        raise abort(404,f"No bot {botname} known.")
 
 def set_user_code(botname, new_code):
     table.put_item( Item={'bot':botname, 'id': 'code', 'code': new_code })
@@ -326,6 +325,45 @@ def send_frontend_index():
 def send_frontend_file(path):
     return send_from_directory('frontend', path)
 
+def management(update, context):
+    def reply(s):
+        context.bot.send_message(chat_id = update.message.chat.id, text = s)
+
+    if update.message.text == "/start":
+        reply("Welcome to Pybotbrain!\nTo get started, send me a message that includes a telegram bot token; you can just forward the message from @BotFather.\nSee https://bot.nomeata.de/ for more infos.")
+    else:
+        match_object = re.search(r'[0-9]{8,10}:[a-zA-Z0-9_-]{35}', update.message.text)
+        if match_object:
+            token = match_object.group(0)
+            other_bot = Bot(token = token)
+            try:
+                other_user = other_bot.getMe()
+                if other_user:
+                    botname = other_user.username
+                    settings = get_bot_settings(botname)
+                    id = update.message.from_user.id
+                    admins = [id]
+                    if settings:
+                        admins = settings['admins']
+                        response = f"Looks like I already know about {botname}."
+                        if token != settings['token']:
+                            response += f"\nBut the token has changed? Updating that…"
+                        if id not in settings['admins']:
+                            response += f"\nAdding you to the list of admins"
+                            admins.add(id)
+                        reply(response)
+                    else:
+                        reply(
+                            f"You sent me the token for bot {botname}.\n"
+                            "You can now login by sending /login to @{botname}, "
+                            "and then going to https://bot.nomeata.de/admin.")
+                    define_bot(botname, token, admins)
+                else:
+                    reply("Sorry, but that token does not seem to be valid.")
+            except Unauthorized:
+                reply("Sorry, but that token does not seem to be valid.")
+        else:
+            reply("Sorry, but I could not find a telegram bot token in your message.")
 
 def echo(botname, update, context):
     out = size_checks(sandbox({
@@ -370,13 +408,18 @@ def login(botname, update, context):
         update.message.reply_text(f"Sorry, but you are not my owner!\n(Your user id is {update.message.from_user.id}.)")
 
 def add_handlers(botname, dp):
-    dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.private))
-    dp.add_handler(MessageHandler(Filters.text, partial(echo, botname)))
+    if botname == "PybotbrainBot":
+        dp.add_handler(MessageHandler(Filters.chat_type.private & Filters.update.message, management))
+    else:
+        dp.add_handler(CommandHandler("login", partial(login, botname), filters = Filters.chat_type.private))
+        dp.add_handler(MessageHandler(Filters.text, partial(echo, botname)))
 
 
 @app.route('/telegram-webhook/<botname>/<arg_token>', methods=["GET", "POST"])
 def webhook(botname, arg_token):
     settings = get_bot_settings(botname)
+    if not settings:
+        raise abort(404,f"No bot {botname} known.")
     if arg_token != settings['token']:
         abort(403, "Wrong token")
     bot = Bot(token = settings['token'])
@@ -387,22 +430,18 @@ def webhook(botname, arg_token):
     dp.process_update(update)
     return ""
 
-@app.route("/delete_webhook/<botname>")
 def delete_webhook(botname):
     settings = get_bot_settings(botname)
     bot = Bot(token = settings['token'])
     bot.delete_webhook()
     print("Web hook deleted")
-    return "Web hook deleted"
 
-@app.route("/set_webhook/<botname>")
 def set_webhook(botname):
     settings = get_bot_settings(botname)
     bot = Bot(token = settings['token'])
     url = f"https://bot.nomeata.de/telegram-webhook/{botname}/{bot.token}"
     bot.set_webhook(url = url)
     print(f"Web hook set to {url}")
-    return f"Web hook set to {url}"
 
 # run a local bot handler
 def local(botname):
