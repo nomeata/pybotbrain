@@ -33,40 +33,45 @@ if False:
 from contextlib import redirect_stdout, redirect_stderr
 import traceback
 import io, sys
-import json
+import pprint
 
 def sandbox(data):
   if 'eval' in data:
       mod_code = data['code']
       eval_code = data['eval']
-      state = json.loads(data['state'])
+      raw_memory = data['memory']
       f = io.StringIO()
       try:
           with redirect_stdout(f):
               with redirect_stderr(f):
+                  memory = eval(raw_memory)
                   from types import ModuleType
                   mod = ModuleType('botcode')
-                  mod.memory = state
+                  mod.memory = memory
                   exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
                   ret = exec(compile(eval_code,"eval-code.py",'single'), mod.__dict__)
       except:
           exception = traceback.format_exc(limit=-1)
           return {'exception': exception}
       else:
-          return {'output': f.getvalue(), 'new_state' : json.dumps(mod.memory) }
+          return {
+            'output': f.getvalue(),
+            'new_memory' : pprint.pformat(mod.memory, indent=2, width=50)
+          }
   elif 'message' in data:
       mod_code = data['code']
       sender = data['sender']
       text = data['text']
-      state = json.loads(data['state'])
+      raw_memory = data['memory']
       response = None
       f = io.StringIO()
       try:
           with redirect_stdout(f):
               with redirect_stderr(f):
+                  memory = eval(raw_memory)
                   from types import ModuleType
                   mod = ModuleType('botcode')
-                  mod.memory = state
+                  mod.memory = memory
                   exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
                   if data['message'] == 'private':
                       if 'private_message' in mod.__dict__:
@@ -79,17 +84,21 @@ def sandbox(data):
           exception = traceback.format_exc(limit=-1)
           return {'exception': exception}
       else:
-          return {'response': response, 'new_state' : json.dumps(mod.memory)}
+          return {
+              'response': response,
+              'new_memory' : pprint.pformat(mod.memory, indent=2, width=50)
+          }
   elif 'test' in data:
       mod_code = data['code']
-      state = json.loads(data['state'])
+      raw_memory = data['memory']
       f = io.StringIO()
       try:
           with redirect_stdout(f):
               with redirect_stderr(f):
+                  memory = eval(raw_memory)
                   from types import ModuleType
                   mod = ModuleType('botcode')
-                  mod.memory = state
+                  mod.memory = memory
                   exec(compile(mod_code,"bot-code.py",'exec'), mod.__dict__)
                   if 'test' in mod.__dict__:
                       mod.test()
@@ -108,6 +117,7 @@ def lambda_handler(event, context):
     return sandbox(event)
 
 if __name__ == '__main__':
+    import json
     data = json.load(sys.stdin)
     ret = sandbox(data)
     print(json.dumps(ret))

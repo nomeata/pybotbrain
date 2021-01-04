@@ -6,7 +6,6 @@ import uuid
 import time
 import json
 import datetime
-import pprint
 import io
 import os
 import subprocess
@@ -36,7 +35,7 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 dynamodb = boto3.resource('dynamodb', region_name='eu-central-1')
 table = dynamodb.Table('python-bot')
 
-# both state and code
+# both memory and code
 MAX_SIZE = 4*1024
 
 # def remote():
@@ -98,16 +97,16 @@ def set_user_code(botname, new_code):
         Item={'bot':botname, 'id': 'code', 'code': new_code }
     )
 
-def get_state(botname):
-    result = table.get_item(Key={'bot': botname, 'id': 'state'})
+def get_memory(botname):
+    result = table.get_item(Key={'bot': botname, 'id': 'memory'})
     if 'Item' in result:
-        return result['Item']['state']
+        return result['Item']['memory']
     else:
         return '{}'
 
-def set_state(botname, new_state):
+def set_memory(botname, new_memory):
     table.put_item(
-        Item={'bot':botname, 'id': 'state', 'state': new_state }
+        Item={'bot':botname, 'id': 'memory', 'memory': new_memory }
     )
 
 def check_pw(pw):
@@ -192,12 +191,12 @@ def get_code():
         'code': get_user_code(botname)
     })
 
-@app.route('/api/get_state', methods=('POST',))
-def api_get_state():
+@app.route('/api/get_memory', methods=('POST',))
+def api_get_memory():
     botname = check_token()
     events, has_more = get_events(botname)
     return json.dumps({
-        'state': pprint.pformat(json.loads(get_state(botname)), indent=2,width=50),
+        'memory': get_memory(botname),
         'events': events,
         'has_more' : has_more
     })
@@ -210,7 +209,6 @@ def no_sandbox(inp):
       # ["python3", "sandbox.py"],
       stdout=subprocess.PIPE,
       stderr=subprocess.PIPE,
-      env=env,
       input=json.dumps(inp).encode('utf8')
     )
     if result.returncode == 0:
@@ -236,7 +234,8 @@ def lambda_sandbox(inp):
     else:
         return json.loads(response['Payload'].read())
 
-sandbox=lambda_sandbox
+#sandbox=lambda_sandbox
+sandbox=no_sandbox
 
 def size_checks(out):
     for k in out.keys():
@@ -261,7 +260,7 @@ def eval_code():
     out = size_checks(sandbox({
         'code' : request.json['mod_code'],
         'eval' : request.json['eval_code'],
-        'state': get_state(botname),
+        'memory': get_memory(botname),
     }))
 
     e = {}
@@ -297,7 +296,7 @@ def test_code():
     out = size_checks(sandbox({
         'code' : request.json['new_code'],
         'test' : True,
-        'state': get_state(botname),
+        'memory': get_memory(botname),
     }))
     return json.dumps({'error': out['error']})
 
@@ -334,11 +333,11 @@ def echo(botname, update, context):
         'message' : update.message.chat.type,
         'sender' : update.message.from_user.first_name,
         'text' : update.message.text,
-        'state': get_state(botname),
+        'memory': get_memory(botname),
     }))
 
-    if 'new_state' in out:
-        set_state(botname, out['new_state'])
+    if 'new_memory' in out:
+        set_memory(botname, out['new_memory'])
 
     e = {}
     e['trigger'] = update.message.chat.type

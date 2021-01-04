@@ -351,9 +351,9 @@ handleAction = case _ of
 
   ReloadMemory -> do
     st <- H.get
-    mbr <- apiPOST "/api/get_state" {}
-    for_ mbr $ \(r::{state :: String, events :: Array LogEvent, has_more :: Boolean}) -> do
-      H.modify_ (_ { memory = r.state, events = r.events, has_more_events = r.has_more })
+    mbr <- apiPOST "/api/get_memory" {}
+    for_ mbr $ \(r::{memory :: String, events :: Array LogEvent, has_more :: Boolean}) -> do
+      H.modify_ (_ { memory = r.memory, events = r.events, has_more_events = r.has_more })
 
   DoLogout -> do
     H.raise Logout
