@@ -74,21 +74,17 @@ Sure! Some things on the TODO list are:
 
  * Sensible polling for events and memory changes
 
-   The Frontend should use not always donwload the full list of events, but only
+   The Frontend should use not always download the full list of events, but only
    those that are new since the last one.
 
    Events should probably have a DynamoDB-based time-to-live.
 
    Memory polling could be done with a ETag-like mechanism.
 
- * Rewrite the backend in a different language
+   Polling should stop when UI is in a background tab.
 
-   If the python sandboxing allows that (maybe because it is
-   [RustPython](https://github.com/RustPython/RustPython) running in
-   WebAssembly, as done in [this
-   project](https://github.com/robot-rumble/logic/)), maybe rewriting the
-   backend in a nicer language
-   ([Haskell?](https://github.com/robot-rumble/logic/)) is appropriate.
+ * Rewrite the backend in a different language, now that the Python sandboxing
+   is its own process, and thus the backend is completely independent of Python.
 
  * Easier sign up
 
@@ -104,6 +100,6 @@ Sure! Some things on the TODO list are:
    necessarily _all_ the things.
 
    That said, a careful extension of the capabilities, especially if they don’t
-   make the first steps more complicated, are useful. Especailly important
+   make the first steps more complicated, are useful. Especially important
    features like “sending stickers”.
 
