@@ -355,7 +355,7 @@ def management(update, context):
                     else:
                         reply(
                             f"You sent me the token for bot {botname}.\n"
-                            "You can now login by sending /login to @{botname}, "
+                            f"You can now login by sending /login to @{botname}, "
                             "and then going to https://bot.nomeata.de/admin.")
                     define_bot(botname, token, admins)
                 else:
