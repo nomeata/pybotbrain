@@ -61,7 +61,6 @@ Sure! Some things on the TODO list are:
 
    * Find the minimal necessary AWS policy for the Lambda function.
    * Find a good sandbox for the Python execution (see discussion in `./Sandboxing.md`)
-   * Size limits on code and state.
 
  * Prettier UI
 

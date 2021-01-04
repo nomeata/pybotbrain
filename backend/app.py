@@ -36,6 +36,9 @@ app.config['TEMPLATES_AUTO_RELOAD'] = True
 dynamodb = boto3.resource('dynamodb', region_name='eu-central-1')
 table = dynamodb.Table('python-bot')
 
+# both state and code
+MAX_SIZE = 4*1024
+
 # def remote():
 #     bot.send_message(chat_id=77633402, text="I was just deployed")
 #     bot.send_photo(chat_id=77633402, photo="https://api.kaleidogen.nomeata.de/img/0FE345673449ABCDEF.png")
@@ -95,23 +98,17 @@ def set_user_code(botname, new_code):
         Item={'bot':botname, 'id': 'code', 'code': new_code }
     )
 
-def get_raw_state(botname):
+def get_state(botname):
     result = table.get_item(Key={'bot': botname, 'id': 'state'})
     if 'Item' in result:
         return result['Item']['state']
     else:
         return '{}'
 
-def get_state(botname):
-    return json.loads(get_raw_state(botname))
-
-def set_raw_state(botname, new_state):
+def set_state(botname, new_state):
     table.put_item(
         Item={'bot':botname, 'id': 'state', 'state': new_state }
     )
-
-def set_state(botname, new_state):
-    set_raw_state(botname, json.dumps(new_state))
 
 def check_pw(pw):
     result = table.get_item(Key={'bot': '#pwds', 'id': pw})
@@ -200,7 +197,7 @@ def api_get_state():
     botname = check_token()
     events, has_more = get_events(botname)
     return json.dumps({
-        'state': pprint.pformat(get_state(botname), indent=2,width=50),
+        'state': pprint.pformat(json.loads(get_state(botname)), indent=2,width=50),
         'events': events,
         'has_more' : has_more
     })
@@ -241,6 +238,14 @@ def lambda_sandbox(inp):
 
 sandbox=lambda_sandbox
 
+def size_checks(out):
+    for k in out.keys():
+        if len(k) >= 50:
+            return {'error': f'Oddly large key name!' }
+        if isinstance(out[k], str) and len(out[k]) >= MAX_SIZE:
+            return {'error': f'{k} too large' }
+    return out
+
 @app.route('/api/eval_code', methods=('POST',))
 def eval_code():
     botname = check_token()
@@ -248,17 +253,19 @@ def eval_code():
         abort(make_response(json.dumps({'error': "Missing module code"}), 400))
     if not 'eval_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing eval code"}), 400))
-    out = sandbox({
+    if len(request.json['mod_code']) >= MAX_SIZE:
+        return json.dumps({'output': "Code too big"})
+    if len(request.json['eval_code']) >= MAX_SIZE:
+        return json.dumps({'output': "Code too big"})
+
+    out = size_checks(sandbox({
         'code' : request.json['mod_code'],
         'eval' : request.json['eval_code'],
-        'state': get_raw_state(botname),
-    })
+        'state': get_state(botname),
+    }))
 
     e = {}
     e['trigger'] = 'eval'
-
-    if 'new_state' in out:
-        set_raw_state(botname, out['new_state'])
 
     if 'output' in out:
         ret = {'output': out['output']}
@@ -283,13 +290,15 @@ def test_code():
     if not 'new_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
     new_code = request.json['new_code']
-    state = get_state(botname)
 
-    out = sandbox({
+    if len(request.json['new_code']) >= MAX_SIZE:
+        return json.dumps({'error': "Code too big"})
+
+    out = size_checks(sandbox({
         'code' : request.json['new_code'],
         'test' : True,
-        'state': get_raw_state(botname),
-    })
+        'state': get_state(botname),
+    }))
     return json.dumps({'error': out['error']})
 
 @app.route('/api/set_code', methods=('POST',))
@@ -297,6 +306,8 @@ def set_code():
     botname = check_token()
     if not 'new_code' in request.json:
         abort(make_response(json.dumps({'error': "Missing new code data"}), 400))
+    if len(request.json['new_code']) >= MAX_SIZE:
+        abort(make_response(json.dumps({'error': "Code too big"}), 400))
     set_user_code(botname, request.json['new_code'])
     return json.dumps({})
 
@@ -318,16 +329,16 @@ def send_frontend_file(path):
 
 
 def echo(botname, update, context):
-    out = sandbox({
+    out = size_checks(sandbox({
         'code' : get_user_code(botname),
         'message' : update.message.chat.type,
         'sender' : update.message.from_user.first_name,
         'text' : update.message.text,
-        'state': get_raw_state(botname),
-    })
+        'state': get_state(botname),
+    }))
 
     if 'new_state' in out:
-        set_raw_state(botname, out['new_state'])
+        set_state(botname, out['new_state'])
 
     e = {}
     e['trigger'] = update.message.chat.type
