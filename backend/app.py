@@ -37,7 +37,7 @@ dynamodb = boto3.resource('dynamodb', region_name='eu-central-1')
 table = dynamodb.Table('python-bot')
 
 # both memory and code
-MAX_SIZE = 4*1024
+MAX_SIZE = 1024*1024
 
 # def remote():
 #     bot.send_message(chat_id=77633402, text="I was just deployed")
