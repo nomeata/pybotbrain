@@ -13,7 +13,7 @@ import Effect.Aff.Class (class MonadAff)
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Properties as HP
-import Halogen.Query.EventSource as ES
+import Halogen.Subscription as HS
 
 type Slot = H.Slot Query Output
 
@@ -34,7 +34,7 @@ data Action
 type State = { editor :: Maybe Editor }
 
 -- | The Ace component definition.
-component :: forall i m. MonadAff m => H.Component HH.HTML Query i Output m
+component :: forall i m. MonadAff m => H.Component Query i Output m
 component =
   H.mkComponent
     { initialState
@@ -71,9 +71,9 @@ handleAction = case _ of
       H.liftEffect $ Session.setUseSoftTabs true session
       H.liftEffect $ Session.setUseWrapMode true session
       H.modify_ (_ { editor = Just editor })
-      void $ H.subscribe $ ES.effectEventSource \emitter -> do
-        Session.onChange session (\_ -> ES.emit emitter HandleChange)
-        pure mempty
+      { emitter, listener } <- H.liftEffect HS.create
+      void $ H.subscribe emitter
+      H.liftEffect $ Session.onChange session (\_ -> HS.notify listener HandleChange)
   Finalize -> do
     -- Release the reference to the editor and do any other cleanup that a
     -- real world component might need.

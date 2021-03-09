@@ -2,8 +2,9 @@
   "private": true,
   "devDependencies": {
     "parcel": "^1.12.4",
-    "purescript": "^0.13.8",
-    "spago": "^0.15.3"
+    "purescript": "^0.14.0",
+    "spago": "^0.19.1",
+    "pscid": "^2.9.3"
   },
   "scripts": {
     "build": "spago build",
@@ -12,7 +13,6 @@
     "build-prod": "mkdir -p prod && cp dev/index.html prod/ && rm -rf dist && spago bundle-app --to prod/index.js && parcel build --public-url ./ --no-source-maps prod/index.html"
   },
   "dependencies": {
-    "ace-builds": "^1.4.12",
-    "pscid": "^2.9.3"
+    "ace-builds": "^1.4.12"
   }
 }

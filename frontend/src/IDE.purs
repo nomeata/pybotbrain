@@ -2,36 +2,36 @@ module IDE where
 
 import Prelude
 
-import Data.Const (Const)
-import Data.Foldable (foldMap, null, for_, intercalate)
-import Data.Maybe (Maybe(..), maybe)
-import Data.Either (Either(..))
-import Data.Symbol (SProxy(..))
-import Control.Monad.Loops (whileM_)
-import Control.Monad.Rec.Class (forever)
-import Effect.Class.Console as Console
-import Effect.Aff as Aff
-import Effect.Aff (Milliseconds(..))
-import Effect.Aff.Class (class MonadAff)
-import Effect.Exception (error)
 import AceComponent as AceComponent
 import Affjax as AX
-import Affjax.StatusCode (StatusCode(..))
-import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
 import Affjax.RequestHeader as AXRH
-import Data.HTTP.Method (Method(POST))
+import Affjax.ResponseFormat as AXRF
+import Affjax.StatusCode (StatusCode(..))
+import Control.Monad.Loops (whileM_)
+import Control.Monad.Rec.Class (forever)
 import Data.Argonaut (class EncodeJson, class DecodeJson, encodeJson, decodeJson, printJsonDecodeError, getField, getFieldOptional)
 import Data.Argonaut.Parser (jsonParser)
+import Data.Const (Const)
+import Data.Either (Either(..))
+import Data.Foldable (foldMap, null, for_, intercalate)
+import Data.HTTP.Method (Method(POST))
+import Data.Maybe (Maybe(..), maybe)
+import Effect.Aff (Milliseconds(..))
+import Effect.Aff as Aff
+import Effect.Aff.Class (class MonadAff)
+import Effect.Class.Console as Console
+import Effect.Exception (error)
+import HTMLUtils as HU
 import Halogen as H
 import Halogen.HTML as HH
 import Halogen.HTML.Events as HE
 import Halogen.HTML.Properties as HP
-import Halogen.Query.EventSource (EventSource)
-import Halogen.Query.EventSource as EventSource
-import Web.Event.Event as Event
+import Halogen.Subscription (Emitter)
+import Halogen.Subscription as HS
+import Type.Prelude (Proxy(..))
 import Web.Event.Event (Event)
-import HTMLUtils as HU
+import Web.Event.Event as Event
 
 type Slot = H.Slot (Const Void) Output
 
@@ -78,7 +78,7 @@ type ChildSlots =
   ( ace :: AceComponent.Slot Unit
   )
 
-_ace = SProxy :: SProxy "ace"
+_ace = Proxy :: Proxy "ace"
 
 data LogEvent
   = EvalEvent { exception :: Maybe String }
@@ -112,7 +112,7 @@ instance encodeLogEvent :: DecodeJson LogEvent where
          _ -> pure OtherEvent
 
 -- | The main UI component definition.
-component :: forall f m. MonadAff m => H.Component HH.HTML f LoginData Output m
+component :: forall f m. MonadAff m => H.Component f LoginData Output m
 component =
   H.mkComponent
     { initialState: \loginData ->
@@ -151,7 +151,7 @@ render st =
             [ HH.p [HU.classes ["card-header-title"]]
               [ HH.text "⌨️ Code" ]
             ]
-          , HH.slot _ace unit AceComponent.component unit (Just <<< HandleAceUpdate)
+          , HH.slot _ace unit AceComponent.component unit HandleAceUpdate
           ]
         ]
       , HU.divClass ["column","is-5"]
@@ -173,19 +173,19 @@ render st =
                 HH.button
                 [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-primary"] else ["is-black"]))
                 , HP.disabled (not enabled)
-                , HE.onClick \_ -> Just Deploy
+                , HE.onClick \_ -> Deploy
                 ]
                 [ HH.text "🚀 Deploy" ]
               , let enabled = st.deployedCode /= st.editorCode in
                 HH.button
                 [ HU.classes (["card-footer-item", "button"] <> (if enabled then ["is-dark"] else ["is-black"]))
                 , HP.disabled (not enabled)
-                , HE.onClick \_ -> Just Revert
+                , HE.onClick \_ -> Revert
                 ]
                 [ HH.text "♻️ Revert" ]
               , HH.button
                 [ HU.classes ["card-footer-item", "button", "is-dark"]
-                , HE.onClick \_ -> Just DoLogout
+                , HE.onClick \_ -> DoLogout
                 ]
                 [ HH.text "🚪 Logout" ]
               ]
@@ -238,14 +238,14 @@ render st =
             , HU.divClass ["card-content"] $
               [ HH.form
                 [ HU.classes ["block"]
-                , HE.onSubmit \e -> Just (DoEval e) ] $
+                , HE.onSubmit DoEval ] $
                 [ HU.divClass ["field has-addons"]
                   [ HU.divClass ["control is-expanded"]
                     [ HH.input
                       [ HU.classes ["input is-fullwidth"]
                       , HP.name "eval-code"
                       , HP.value st.eval_code
-                      , HE.onValueInput (Just <<< ChangeEvalCode)
+                      , HE.onValueInput ChangeEvalCode
                       , HP.placeholder "private_message('Peter','Hallo!')"
                       ]
                     ]
@@ -338,7 +338,7 @@ handleAction = case _ of
     st <- H.get
     mbr <- apiPOST "/api/get_code" {}
     for_ mbr $ \(r::{botname :: String, code :: String}) -> do
-      void $ H.query _ace unit $ H.tell (AceComponent.InitText r.code)
+      H.tell _ace unit (AceComponent.InitText r.code)
       H.modify_ (_
         { botname = r.botname
         , testCode = r.code
@@ -346,7 +346,7 @@ handleAction = case _ of
         , deployedCode = r.code
         })
     handleAction ReloadMemory
-    _ <- H.subscribe timer
+    _ <- H.subscribe =<< timer
     pure unit
 
   ReloadMemory -> do
@@ -367,7 +367,7 @@ handleAction = case _ of
 
   Revert ->  do
     st <- H.get
-    void $ H.query _ace unit $ H.tell (AceComponent.SetText st.deployedCode)
+    H.tell _ace unit (AceComponent.SetText st.deployedCode)
 
   ChangeEvalCode s -> H.modify_ (_ { eval_code = s})
 
@@ -386,11 +386,10 @@ handleAction = case _ of
     H.modify_ (_{ editorCode = code })
     updateTestStatus
 
-timer :: forall m. MonadAff m => EventSource m Action
-timer = EventSource.affEventSource \emitter -> do
-  fiber <- Aff.forkAff $ forever do
+timer :: forall m. MonadAff m => m (Emitter Action)
+timer = do
+  { emitter, listener } <- H.liftEffect HS.create
+  fiber <- H.liftAff $ Aff.forkAff $ forever do
     Aff.delay $ Milliseconds 10000.0
-    EventSource.emit emitter ReloadMemory
-
-  pure $ EventSource.Finalizer do
-    Aff.killFiber (error "Event source finalized") fiber
+    H.liftEffect $ HS.notify listener ReloadMemory
+  pure emitter
