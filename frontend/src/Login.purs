@@ -43,7 +43,7 @@ data LoginAction
   | ChangePassword String
   | DoLogin Event
 
-component :: forall f i m. MonadAff m => H.Component HH.HTML f i LoginData m
+component :: forall f i m. MonadAff m => H.Component f i LoginData m
 component =
   H.mkComponent
     { initialState: \_ -> {
@@ -67,7 +67,7 @@ renderLogin st = HU.fullHeight $
       , HH.p  [ HU.classes ["subtitle"] ]
         [ HH.text "Send /login to your bot to get a password!" ]
       , HH.form
-        [ HE.onSubmit \e -> Just (DoLogin e)
+        [ HE.onSubmit DoLogin
         ] $
         [ HU.divClass ["field"]
           [ HU.divClass ["control"]
@@ -76,7 +76,7 @@ renderLogin st = HU.fullHeight $
               -- , HP.type_ HP.InputPassword
               , HP.name "password"
               , HP.value st.password
-              , HE.onValueInput (Just <<< ChangePassword)
+              , HE.onValueInput ChangePassword
               , HP.placeholder "ABCDEF"
               ]
             ]
