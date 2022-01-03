@@ -36,7 +36,8 @@ At a high level, the mitigations involve:
 
    See https://github.com/Miserlou/Zappa/issues/244 and https://github.com/Miserlou/Zappa/issues/2079
 
- * Setting resource limits for Amazon Lambda, to cap costs (at the expense of service downtime)
+ * Setting resource limits for Amazon Lambda, to cap costs (at the expense of service downtime).
+
    To be investigated.
 
  * Sandbox the python code.
@@ -48,10 +49,8 @@ At a high level, the mitigations involve:
    * Messing with the Amazon Lambda execution environment in other ways.
 
    Malicious code execution is already restricted to
-   `backend/sandbox/sandbox.py`, which communicated via stdin/stdout, so both
+   `backend/sandbox/sandbox.py`, which communicates via stdin/stdout, so both
    Python-specific and process-generic mechanims can be used.
-
-   Currently using the separate Amazon Lambda function approach.
 
 Sandboxing with seccomp
 -----------------------
@@ -109,4 +108,10 @@ If that is still an issue, a separate Amazon Lambda function per user (i.e. per
 bot) could be created automatically; it seems the cost model of AWS makes that
 possible. (Thanks to https://twitter.com/felixhuttmann for that suggestion).
 
-Also adds latency, much much less than RustPython/Wasm.
+Also adds latency, but much much less than RustPython/Wasm.
+
+
+Status quo
+----------
+
+Currently using the separate Amazon Lambda function approach.

@@ -50,7 +50,7 @@ Yes you can!
   5. Now talk to _your_ bot, and say `/login`
   6. Go to https://bot.nomeata.de/admin/ to login and get started!
 
-Of course, you already have a Telegram bot, and want to control it with this, just send the token to `@PybotbrainBot`
+Of course, if you already have a Telegram bot, and you want to control it with this, just send its token to `@PybotbrainBot`
 
 ## Can I host it myself?
 
