@@ -39,7 +39,7 @@ To create the initial DynamodDB table, run
 python3 -c 'import app; app.create_table()'
 ```
 
-Change `domain` to “your” Domain in `zappa_settings.json`, conigure a AWS
+Change `domain` to “your” Domain in `zappa_settings.json`, configure a AWS
 certificate for that domain, and set the `certificate_arn` setting accordingly.
 Also change the domain in `app.py`.
 
@@ -63,7 +63,7 @@ and in `backend/`, run
 ```
 zappa update
 ```
-as well ass
+as well as
 ```
 ./deploy-eval.sh
 ```
