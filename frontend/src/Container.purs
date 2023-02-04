@@ -30,7 +30,6 @@ _ide = Proxy :: Proxy "ide"
 -- | The main UI component definition.
 component :: forall f i o m. MonadAff m => H.Component f i o m
 component =
-  -- hash <- window >>= Window.location >>= Location.hash
   H.mkComponent
     { initialState: \_ -> Login
     , render: render

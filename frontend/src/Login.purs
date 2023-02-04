@@ -7,6 +7,7 @@ import Data.Const (Const)
 import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Foldable (foldMap, for_)
+import Effect.Console as Console
 import Effect.Aff.Class (class MonadAff)
 import Affjax.Web as AX
 import Affjax.StatusCode (StatusCode(..))
@@ -19,7 +20,8 @@ import Halogen.HTML.Events as HE
 import Web.Event.Event (Event)
 import Web.Event.Event as Event
 import Web.HTML (window)
-import Web.HTML.Window (localStorage)
+import Web.HTML.Window (localStorage, location)
+import Web.HTML.Location as Location
 import Web.Storage.Storage as Storage
 import Data.Argonaut (encodeJson, decodeJson, printJsonDecodeError)
 
@@ -100,11 +102,18 @@ handleLoginAction :: forall m.  MonadAff m => LoginAction -> H.HalogenM State Lo
 handleLoginAction = case _ of
 
   Initialize -> do
-    pw <- H.liftEffect $ do
-      w <- window
-      s <- localStorage w
-      Storage.getItem "token" s
-    for_ pw $ \token -> H.raise {token}
+    hash <- H.liftEffect $ window >>= location >>= Location.hash
+    H.liftEffect $ Console.log hash
+    case String.stripPrefix (String.Pattern "#login=") hash of
+      Just pw -> do
+        H.liftEffect $ window >>= location >>= Location.setHash ""
+        H.modify_ (_ { password = pw })
+      Nothing -> do
+        pw <- H.liftEffect $ do
+          w <- window
+          s <- localStorage w
+          Storage.getItem "token" s
+        for_ pw $ \token -> H.raise {token}
 
   ChangePassword s -> H.modify_ (_ { password = String.toUpper s})
 
