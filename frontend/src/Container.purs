@@ -30,6 +30,7 @@ _ide = Proxy :: Proxy "ide"
 -- | The main UI component definition.
 component :: forall f i o m. MonadAff m => H.Component f i o m
 component =
+  -- hash <- window >>= Window.location >>= Location.hash
   H.mkComponent
     { initialState: \_ -> Login
     , render: render
@@ -47,7 +48,7 @@ handleAction = case _ of
   HandleLogin loginData -> H.put (IDE loginData)
   HandleLogout IDE.Logout -> do
     -- A slight break of abstraction; this should happen in the Login component
-    pw <- H.liftEffect $ do
+    H.liftEffect $ do
       w <- window
       s <- localStorage w
       Storage.removeItem "token" s

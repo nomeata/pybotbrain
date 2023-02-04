@@ -3,7 +3,7 @@ module IDE where
 import Prelude
 
 import AceComponent as AceComponent
-import Affjax as AX
+import Affjax.Web as AX
 import Affjax.RequestBody as AXRB
 import Affjax.RequestHeader as AXRH
 import Affjax.ResponseFormat as AXRF
@@ -335,7 +335,6 @@ updateTestStatus = do
 handleAction :: forall m. MonadAff m => Action -> H.HalogenM State Action ChildSlots Output m Unit
 handleAction = case _ of
   Initialize -> do
-    st <- H.get
     mbr <- apiPOST "/api/get_code" {}
     for_ mbr $ \(r::{botname :: String, code :: String}) -> do
       H.tell _ace unit (AceComponent.InitText r.code)
@@ -350,7 +349,6 @@ handleAction = case _ of
     pure unit
 
   ReloadMemory -> do
-    st <- H.get
     mbr <- apiPOST "/api/get_memory" {}
     for_ mbr $ \(r::{memory :: String, events :: Array LogEvent, has_more :: Boolean}) -> do
       H.modify_ (_ { memory = r.memory, events = r.events, has_more_events = r.has_more })
@@ -389,7 +387,7 @@ handleAction = case _ of
 timer :: forall m. MonadAff m => m (Emitter Action)
 timer = do
   { emitter, listener } <- H.liftEffect HS.create
-  fiber <- H.liftAff $ Aff.forkAff $ forever do
+  _fiber <- H.liftAff $ Aff.forkAff $ forever do
     Aff.delay $ Milliseconds 10000.0
     H.liftEffect $ HS.notify listener ReloadMemory
   pure emitter

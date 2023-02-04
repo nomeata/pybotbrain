@@ -8,7 +8,7 @@ import Data.Either (Either(..))
 import Data.Maybe (Maybe(..))
 import Data.Foldable (foldMap, for_)
 import Effect.Aff.Class (class MonadAff)
-import Affjax as AX
+import Affjax.Web as AX
 import Affjax.StatusCode (StatusCode(..))
 import Affjax.ResponseFormat as AXRF
 import Affjax.RequestBody as AXRB
