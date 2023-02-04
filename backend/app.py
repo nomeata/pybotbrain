@@ -403,7 +403,7 @@ def login(botname, update, context):
         note_event(botname, {'trigger' : "login", 'from': update.message.from_user.first_name}, update.update_id)
         pw = ''.join(random.SystemRandom().choice(string.ascii_uppercase) for _ in range(6))
         add_pw(botname, pw)
-        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/")
+        update.message.reply_text(f"Welcome back! Your password is {pw}\nUse this at https://bot.nomeata.de/\nor directly open https://bot.nomeata.de/#login={pw}.")
     else:
         update.message.reply_text(f"Sorry, but you are not my owner!\n(Your user id is {update.message.from_user.id}.)")
 
