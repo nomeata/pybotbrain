@@ -162,8 +162,8 @@ def api_login():
     nbf = iat
     payload = {'iat': iat, 'nbf': nbf, 'botname': botname}
     secret = app.config['SECRET_KEY']
-    token = jwt.encode(payload, secret)
-    return json.dumps({'token' : token.decode('utf-8')})
+    token = jwt.encode(payload, secret, algorithm="HS256")
+    return json.dumps({'token' : token})
 
 def check_token():
     header = request.headers.get('Authorization', None)
@@ -177,7 +177,7 @@ def check_token():
     secret = app.config['SECRET_KEY']
     token = header[7:]
     try:
-        payload = jwt.decode(token, secret)
+        payload = jwt.decode(token, secret, algorithms=['HS256'])
         return payload['botname']
     except jwt.InvalidTokenError as e:
         abort(401, f"Invalid token: {e}")

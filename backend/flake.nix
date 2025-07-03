@@ -1,5 +1,5 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.05";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
   outputs = { self, nixpkgs }:
     let
       system = "x86_64-linux";
@@ -8,7 +8,7 @@
     { devShell.${system} = pkgs.stdenv.mkDerivation rec {
       name = "env";
       buildInputs = with pkgs; [
-        python39
+        python311
         libffi
       ];
    };};
